@@ -1,0 +1,9 @@
+RC=4294967295
+STDOUT:
+FAILED: Target database is not up to date.
+
+STDERR:
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+ERROR [alembic.util.messaging] Target database is not up to date.
+

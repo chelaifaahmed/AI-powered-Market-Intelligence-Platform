@@ -1,0 +1,110 @@
+RETURN_CODE=1
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Initial schema ? all 28 tables, 13 ENUMs, indexes, and constraints.
+Traceback (most recent call last):
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.InvalidForeignKey: ERREUR:  il n'existe aucune contrainte unique correspondant aux cl?s donn?es pour la table ? car_reviews ? r?f?renc?e
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\__main__.py", line 4, in <module>
+    main(prog="alembic")
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\config.py", line 1047, in main
+    CommandLine(prog=prog).main(argv=argv)
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\config.py", line 1037, in main
+    self.run_cmd(cfg, options)
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\config.py", line 971, in run_cmd
+    fn(
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\command.py", line 483, in upgrade
+    script.run_env()
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\script\base.py", line 545, in run_env
+    util.load_python_file(self.dir, "env.py")
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\util\pyfiles.py", line 116, in load_python_file
+    module = load_module_py(module_id, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\util\pyfiles.py", line 136, in load_module_py
+    spec.loader.exec_module(module)  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "c:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\database\migrations\env.py", line 175, in <module>
+    run_migrations_online()
+  File "c:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\database\migrations\env.py", line 165, in run_migrations_online
+    run_migrations_online_sync()
+  File "c:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\database\migrations\env.py", line 116, in run_migrations_online_sync
+    _configure_and_run(connection)
+  File "c:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\database\migrations\env.py", line 133, in _configure_and_run
+    context.run_migrations()
+  File "<string>", line 8, in run_migrations
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\runtime\environment.py", line 969, in run_migrations
+    self.get_context().run_migrations(**kw)
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\runtime\migration.py", line 626, in run_migrations
+    step.migration_fn(**kw)
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\database\migrations\versions\0001_initial_schema.py", line 710, in upgrade
+    op.create_table(
+  File "<string>", line 8, in create_table
+  File "<string>", line 3, in create_table
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\operations\ops.py", line 1331, in create_table
+    return operations.invoke(op)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\operations\base.py", line 452, in invoke
+    return fn(self, operation)
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\operations\toimpl.py", line 140, in create_table
+    operations.impl.create_table(table, **kw)
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\ddl\impl.py", line 442, in create_table
+    self._exec(schema.CreateTable(table, **kw))
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\alembic\ddl\impl.py", line 256, in _exec
+    return conn.execute(construct, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\sqlalchemy\sql\ddl.py", line 187, in _execute_on_connection
+    return connection._execute_ddl(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1530, in _execute_ddl
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\LENOVO\Documents\WebScrapper_PFE_Antigravity\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.InvalidForeignKey) ERREUR:  il n'existe aucune contrainte unique correspondant aux cl?s donn?es pour la table ? car_reviews ? r?f?renc?e
+
+[SQL: 
+CREATE TABLE car_review_nlp (
+	id UUID NOT NULL, 
+	review_id UUID NOT NULL, 
+	sentiment_label sentiment_label, 
+	sentiment_score NUMERIC(6, 4), 
+	complaint_type_id UUID, 
+	topic_id UUID, 
+	model_version VARCHAR(50) NOT NULL, 
+	processed_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_car_nlp_review_model UNIQUE (review_id, model_version), 
+	CONSTRAINT chk_car_nlp_score CHECK (sentiment_score BETWEEN -1.0 AND 1.0), 
+	FOREIGN KEY(review_id) REFERENCES car_reviews (id) ON DELETE CASCADE, 
+	FOREIGN KEY(complaint_type_id) REFERENCES complaint_types (id) ON DELETE SET NULL, 
+	FOREIGN KEY(topic_id) REFERENCES topics (id) ON DELETE SET NULL
+)
+
+]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+

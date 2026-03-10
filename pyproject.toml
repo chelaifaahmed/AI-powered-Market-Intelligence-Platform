@@ -1,0 +1,2 @@
+[tool.pyre]
+source_directories = ["."]

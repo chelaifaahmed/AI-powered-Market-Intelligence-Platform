@@ -1,0 +1,2 @@
+ERREUR:  aucune partition de la relation « car_reviews » trouvée pour la ligne
+DETAIL:  La clé de partitionnement de la ligne en échec contient (scraped_at) = (2026-03-07 15:07:09.680123+01).
