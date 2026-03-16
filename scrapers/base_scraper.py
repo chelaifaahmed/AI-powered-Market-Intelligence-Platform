@@ -111,6 +111,11 @@ class BaseScraper(ABC):
             max_retries=3,
             rate_limiter=self._limiter,
         )
+        self._run_metrics = {
+            "pages_fetched": 0,
+            "records_extracted": 0,
+            "bytes_downloaded": 0,
+        }
         self.logger = logging.getLogger(f"scrapers.{self.source_name}")
         self.logger.info(
             "Scraper '%s' initialised — %d URL(s) queued, rate=%.2f req/s",
@@ -127,6 +132,13 @@ class BaseScraper(ABC):
     def parse(self, html: str) -> list[dict]:
         """Extract structured records from raw HTML.
 
+        .. deprecated::
+            This method is no longer called by ``run()``. Raw HTML is persisted
+            to ``raw_pages`` (via ``fetch_page``) and structured extraction is
+            handled by ``parsers.automotive_pipeline.ParserPipeline``.
+            Subclasses may keep their implementation for testing purposes, but
+            it will not be invoked during a normal scraping run.
+
         Args:
             html (str): Raw HTML content of the fetched page.
 
@@ -138,7 +150,12 @@ class BaseScraper(ABC):
     # Concrete helpers
     # -----------------------------------------------------------------------
 
-    def fetch_page(self, url: str) -> Optional[str]:
+    def fetch_page(
+        self,
+        url: str,
+        scrape_task_id=None,
+        run_id=None,
+    ) -> Optional[str]:
         """Download a page, persist it to ``raw_pages``, and return raw HTML.
 
         On any error the exception is logged and ``None`` is returned, so the
@@ -158,6 +175,8 @@ class BaseScraper(ABC):
             response = self._client.get(url)
             http_status = response.status_code
             html = response.text
+            self._run_metrics["pages_fetched"] += 1
+            self._run_metrics["bytes_downloaded"] += len(html.encode("utf-8", errors="replace"))
             self.logger.info(
                 "Fetched %s — status=%d, size=%d chars",
                 url, http_status, len(html),
@@ -168,46 +187,62 @@ class BaseScraper(ABC):
             http_status = getattr(getattr(exc, "response", None), "status_code", None)
 
         # Always persist to raw_pages (even on failure, for audit trail)
-        self._store_raw_page(url=url, html=html, http_status=http_status)
+        self._store_raw_page(
+            url=url,
+            html=html,
+            http_status=http_status,
+            scrape_task_id=scrape_task_id,
+            run_id=run_id,
+        )
         return html
 
-    def run(self) -> list[dict]:
-        """Execute the full scrape: fetch all start_urls, parse results.
+    def run(self, scrape_task_id=None, run_id=None) -> list[dict]:
+        """Execute the full scrape: fetch all start_urls and persist raw HTML.
+
+        Scrapers are responsible exclusively for HTTP navigation and persisting
+        raw HTML to the ``raw_pages`` table (via ``fetch_page``).  Structured
+        extraction is handled downstream by
+        ``parsers.automotive_pipeline.ParserPipeline`` (see
+        ``scripts/run_parser_pipeline.py``).
 
         Returns:
-            list[dict]: Aggregated parsed results across all URLs.
+            list[dict]: Always an empty list.  Return value is kept for
+            backward-compatibility with ``run_scraping_tasks.py``.
         """
         self.logger.info(
             "Starting run — source='%s', %d URL(s)",
             self.source_name, len(self.start_urls),
         )
-        all_results: list[dict] = []
+        self._run_metrics = {
+            "pages_fetched": 0,
+            "records_extracted": 0,
+            "bytes_downloaded": 0,
+        }
 
         for idx, url in enumerate(self.start_urls, start=1):
-            self.logger.info("Processing URL %d/%d: %s", idx, len(self.start_urls), url)
+            self.logger.info("Fetching URL %d/%d: %s", idx, len(self.start_urls), url)
             try:
-                html = self.fetch_page(url)
-                if html:
-                    records = self.parse(html)
-                    self.logger.info(
-                        "Parsed %d record(s) from %s", len(records), url
-                    )
-                    all_results.extend(records)
-                else:
-                    self.logger.warning("Skipping parse for %s — no HTML returned", url)
+                self.fetch_page(url, scrape_task_id=scrape_task_id, run_id=run_id)
             except Exception as exc:
-                # Belt-and-suspenders: fetch_page should not raise, but just in case
+                # fetch_page already swallows exceptions internally, but guard
+                # here as a belt-and-suspenders measure.
                 self.logger.error(
-                    "Unexpected error processing %s: %s — continuing", url, exc
+                    "Unexpected error fetching %s: %s — continuing", url, exc
                 )
-                continue
 
         self.logger.info(
-            "Run complete — %d total records from %d URL(s)",
-            len(all_results), len(self.start_urls),
+            "Run complete — %d page(s) fetched, %d byte(s) downloaded",
+            self._run_metrics["pages_fetched"],
+            self._run_metrics["bytes_downloaded"],
         )
         self._client.close()
-        return all_results
+        # records_extracted is 0 here; structured records are produced by the
+        # parser pipeline in a separate step.
+        return []
+
+    def get_run_metrics(self) -> dict:
+        """Return run metrics collected during the latest run()."""
+        return dict(self._run_metrics)
 
     # -----------------------------------------------------------------------
     # Private — database persistence
@@ -218,6 +253,8 @@ class BaseScraper(ABC):
         url: str,
         html: Optional[str],
         http_status: Optional[int],
+        scrape_task_id=None,
+        run_id=None,
     ) -> None:
         """Insert one row into ``raw_pages``.
 
@@ -237,6 +274,7 @@ class BaseScraper(ABC):
             )
 
             raw_page = RawPage(
+                scrape_task_id=scrape_task_id,
                 source_url=url,
                 source_domain=domain,
                 http_status_code=http_status,
@@ -250,6 +288,11 @@ class BaseScraper(ABC):
             with get_db_session() as session:
                 session.add(raw_page)
                 # session.commit() is called by the context manager
+            if run_id is not None:
+                self.logger.debug(
+                    "run_id=%s provided; raw_pages currently stores task-level lineage only.",
+                    run_id,
+                )
             self.logger.debug("Stored raw_page for %s (hash=%s…)", url, (content_hash or "")[:16])
 
         except Exception as db_exc:

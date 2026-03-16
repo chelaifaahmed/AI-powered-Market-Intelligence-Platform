@@ -125,3 +125,8 @@ def extract_with_llm(clean_text: str) -> Optional[Dict[str, Any]]:
     except Exception as exc:
         logger.error("LLM extraction failed: %s", exc)
         return None
+
+
+def optional_llm_enrich(clean_text: str) -> Optional[Dict[str, Any]]:
+    """Stage-friendly alias used by pipeline orchestration."""
+    return extract_with_llm(clean_text)

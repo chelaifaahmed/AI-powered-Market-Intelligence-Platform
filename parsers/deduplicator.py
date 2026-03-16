@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from difflib import SequenceMatcher
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
@@ -53,3 +54,57 @@ def is_duplicate(
         .first()
     )
     return existing is not None
+
+
+def deduplicate_record(
+    session: Session,
+    table_class: Any,
+    source_url: str,
+    title: Optional[str],
+    content_hash: Optional[str],
+    similarity_threshold: float = 0.95,
+) -> bool:
+    """Return True when record is duplicate by URL/hash/title similarity."""
+    # URL-level deduplication is the cheapest and strongest signal.
+    if hasattr(table_class, "source_url"):
+        by_url = (
+            session.query(table_class.id)
+            .filter(table_class.source_url == source_url)
+            .first()
+        )
+        if by_url is not None:
+            return True
+
+    if content_hash and hasattr(table_class, "content_hash"):
+        if is_duplicate(session, content_hash, table_class):
+            return True
+
+    if title and hasattr(table_class, "review_title"):
+        candidates = (
+            session.query(table_class.review_title)
+            .filter(table_class.source_url == source_url)
+            .limit(20)
+            .all()
+        )
+        for (existing_title,) in candidates:
+            if not existing_title:
+                continue
+            score = SequenceMatcher(None, title.lower(), existing_title.lower()).ratio()
+            if score >= similarity_threshold:
+                return True
+
+    if title and hasattr(table_class, "title"):
+        candidates = (
+            session.query(table_class.title)
+            .filter(table_class.source_url == source_url)
+            .limit(20)
+            .all()
+        )
+        for (existing_title,) in candidates:
+            if not existing_title:
+                continue
+            score = SequenceMatcher(None, title.lower(), existing_title.lower()).ratio()
+            if score >= similarity_threshold:
+                return True
+
+    return False

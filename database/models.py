@@ -1255,6 +1255,94 @@ class KpiMetric(Base):
 
 
 
+class BrandReputationScore(Base):
+    """
+    Monthly aggregated reputation score per car brand.
+
+    Computed by ``analytics.aggregators.compute_brand_reputation()``.
+    One row per (brand_id, period_date); upserted on every analytics run.
+    ``period_date`` is always the first calendar day of the month.
+    """
+    __tablename__ = "brand_reputation_scores"
+    __table_args__ = (
+        UniqueConstraint("brand_id", "period_date", name="uq_brs_brand_period"),
+        CheckConstraint("review_count >= 0", name="chk_brs_review_count"),
+        Index("idx_brs_brand", "brand_id"),
+        Index("idx_brs_period", "period_date"),
+        Index("idx_brs_brand_period", "brand_id", "period_date"),
+        {"comment": "Monthly brand reputation scores — upserted on each analytics run."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=new_uuid
+    )
+    brand_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("car_brands.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    period_date: Mapped[date] = mapped_column(
+        Date, nullable=False,
+        comment="First day of the calendar month this score covers.",
+    )
+    avg_rating: Mapped[Optional[float]] = mapped_column(
+        Numeric(4, 2),
+        comment="Mean star rating (1–5) across all reviews for this brand/period.",
+    )
+    avg_sentiment_score: Mapped[Optional[float]] = mapped_column(
+        Numeric(6, 4),
+        comment="Mean NLP sentiment score (−1.0 to 1.0) for this brand/period.",
+    )
+    review_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+        comment="Total number of reviews included in this aggregation.",
+    )
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False,
+        comment="Timestamp of the analytics run that produced this row.",
+    )
+
+
+class SentimentTrend(Base):
+    """
+    Monthly breakdown of positive / neutral / negative review counts per brand.
+
+    Paired with ``BrandReputationScore`` for trend-line visualisation.
+    One row per (brand_id, period_date); upserted on every analytics run.
+    """
+    __tablename__ = "sentiment_trends"
+    __table_args__ = (
+        UniqueConstraint("brand_id", "period_date", name="uq_st_brand_period"),
+        CheckConstraint("positive_count >= 0", name="chk_st_positive"),
+        CheckConstraint("neutral_count  >= 0", name="chk_st_neutral"),
+        CheckConstraint("negative_count >= 0", name="chk_st_negative"),
+        Index("idx_st_brand", "brand_id"),
+        Index("idx_st_period", "period_date"),
+        Index("idx_st_brand_period", "brand_id", "period_date"),
+        {"comment": "Monthly sentiment distribution per brand — upserted on each analytics run."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=new_uuid
+    )
+    brand_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("car_brands.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    period_date: Mapped[date] = mapped_column(Date, nullable=False)
+    positive_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    neutral_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    negative_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    avg_sentiment_score: Mapped[Optional[float]] = mapped_column(
+        Numeric(6, 4),
+        comment="Mean NLP sentiment score (−1.0 to 1.0) for this brand/period.",
+    )
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Public export - import all models from one location
 # ---------------------------------------------------------------------------
@@ -1279,5 +1367,5 @@ __all__ = [
     # Market Intelligence
     "MarketTrendArticle",
     # Analytics
-    "KpiMetric",
+    "KpiMetric", "BrandReputationScore", "SentimentTrend",
 ]

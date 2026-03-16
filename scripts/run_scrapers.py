@@ -1,13 +1,41 @@
 """
 scripts/run_scrapers.py
 -----------------------
-Phase 3B — Orchestrating script for Car Review, Insurance Review, and Market News scrapers.
+!! DEPRECATED — DO NOT USE !!
 
-This script sequentially runs the implemented scrapers, iterates over their
-parsed results, and safely inserts them into the database while fulfilling FK constraints.
+This script bypasses the layered data architecture by calling scraper.parse()
+directly and inserting records into domain tables without first persisting raw
+HTML to the ``raw_pages`` table. This breaks lineage tracking and duplicates
+logic that belongs in the parser pipeline.
+
+REPLACEMENT:
+  1. Scraping  →  scripts/run_scraping_tasks.py
+                  (fetches pages and stores raw HTML to raw_pages)
+  2. Parsing   →  scripts/run_parser_pipeline.py
+                  (reads raw_pages and populates domain tables via ParserPipeline)
+
+This file is retained for historical reference only. It will raise a
+DeprecationWarning and exit immediately when executed directly.
 """
 import sys
 import os
+import warnings
+
+warnings.warn(
+    "run_scrapers.py is DEPRECATED and must not be used. "
+    "Use run_scraping_tasks.py (scraping) + run_parser_pipeline.py (parsing) instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+if __name__ == "__main__":
+    print(
+        "\n[DEPRECATED] scripts/run_scrapers.py must not be executed directly.\n"
+        "  Scraping : python scripts/run_scraping_tasks.py\n"
+        "  Parsing  : python scripts/run_parser_pipeline.py\n"
+    )
+    sys.exit(1)
+
 import hashlib
 import logging
 

@@ -19,11 +19,11 @@ from database.base import Base
 # Lazy import to avoid circular dependencies
 # ---------------------------------------------------------------------------
 def _get_settings():
+    import os
     try:
-        from config import settings
+        from config import settings  # type: ignore
         return settings
-    except ImportError:
-        import os
+    except (ImportError, ModuleNotFoundError):
         class _FallbackSettings:
             DATABASE_URL = os.getenv(
                 "DATABASE_URL",

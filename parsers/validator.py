@@ -10,21 +10,40 @@ into the database.
 from __future__ import annotations
 
 import logging
-from typing import Dict, Any, Tuple
+from datetime import date
+from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger("parsers.validator")
 
-# Minimum description length (characters) when title IS present
-_MIN_DESCRIPTION_LEN = 200
+# Minimum body length required for accepted records.
+_MIN_DESCRIPTION_LEN = 50
 
-def validate(record: Dict[str, Any]) -> Tuple[bool, str]:
-    """
-    Validate an automotive intelligence record.
-    """
-    brand = record.get("brand")
-    model = record.get("model")
+def validate_record(record: Dict[str, Any]) -> Tuple[bool, str]:
+    """Validate normalized records before persistence."""
+    title = (record.get("title") or "").strip()
+    body = (record.get("body_text") or "").strip()
+    rating = record.get("rating")
+    publish_date: Optional[date] = record.get("publish_date")
+    source_url = (record.get("source_url") or "").strip()
 
-    if not brand and not model:
-        return False, "neither brand nor model identified"
+    if not source_url:
+        return False, "source_url is empty"
+
+    if not title:
+        return False, "title is empty"
+
+    if len(body) < _MIN_DESCRIPTION_LEN:
+        return False, "body_text too short"
+
+    if rating is not None and not (0.0 <= float(rating) <= 5.0):
+        return False, "rating out of allowed range [0,5]"
+
+    if publish_date is not None and not isinstance(publish_date, date):
+        return False, "publish_date is invalid"
 
     return True, ""
+
+
+def validate(record: Dict[str, Any]) -> Tuple[bool, str]:
+    """Backward-compatible alias for older imports."""
+    return validate_record(record)

@@ -97,3 +97,18 @@ def normalise_results(raw_merged: Dict[str, Any], source_url: str) -> Dict[str, 
         "price_mention": normalize_text(llm.get("price_mention") or dom.get("price")),
         "source_url": source_url,
     }
+
+
+def normalize_record(mapped_record: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize a mapped schema record into canonical DB-ready fields."""
+    record = dict(mapped_record)
+    record["title"] = normalize_text(record.get("title"))
+    record["author"] = normalize_text(record.get("author"))
+    record["body_text"] = normalize_text(record.get("body_text"))
+    record["brand"] = normalize_text(record.get("brand"))
+    record["model"] = normalize_text(record.get("model"))
+    record["product_name"] = normalize_text(record.get("product_name"))
+    record["rating"] = normalize_rating(str(record.get("rating")) if record.get("rating") is not None else None)
+    record["publish_date"] = normalize_date(str(record.get("publish_date")) if record.get("publish_date") else None)
+    record["source_url"] = normalize_text(record.get("source_url"))
+    return record

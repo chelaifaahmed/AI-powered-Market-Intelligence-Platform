@@ -1,20 +1,4 @@
-"""
-parsers/dom_extractor.py
-------------------------
-STEP 3 — DOM Heuristic Extraction
-
-Uses CSS selectors and regex patterns to locate automotive intelligence
-fields within lightly cleaned HTML. This pass provides a baseline that schema_extractor
-can override, or that LLM fallback supplements.
-
-Extraction priority within each field:
-    1. Specific data attributes (data-company, data-location, …)
-    2. Known semantic CSS classes / ids
-    3. Generic structural selectors (h1, meta tags)
-    4. Regex patterns applied to full text
-
-All fields may return None — no field is mandatory at this stage.
-"""
+"""DOM extraction stage for parser pipeline."""
 
 from __future__ import annotations
 
@@ -26,9 +10,7 @@ from bs4 import BeautifulSoup, Tag
 
 logger = logging.getLogger("parsers.dom_extractor")
 
-# ---------------------------------------------------------------------------
-# Selector maps — tried in order; first non-empty match wins
-# ---------------------------------------------------------------------------
+# Tried in order; first non-empty match wins.
 
 _BRAND_SELECTORS = [
     ".brand", ".manufacturer", "[data-brand]",
@@ -50,6 +32,29 @@ _PRICE_SELECTORS = [
     "[data-price]", ".vehicle-price",
 ]
 
+_AUTHOR_SELECTORS = [
+    "[name='author']",
+    "[property='article:author']",
+    ".author",
+    ".byline",
+    "[class*='author']",
+]
+
+_PUBLISH_DATE_SELECTORS = [
+    "time[datetime]",
+    "meta[property='article:published_time']",
+    "meta[name='pubdate']",
+    "meta[name='publish-date']",
+]
+
+_BODY_SELECTORS = [
+    "article",
+    "main",
+    ".article-body",
+    ".content",
+    "[class*='article']",
+]
+
 
 def _first_text(soup: BeautifulSoup, selectors: List[str]) -> Optional[str]:
     """Try each selector and return the first non-empty text found."""
@@ -65,17 +70,23 @@ def _first_text(soup: BeautifulSoup, selectors: List[str]) -> Optional[str]:
     return None
 
 
-def extract_from_dom(clean_html: str, source_url: str = "") -> Dict[str, Any]:
-    """
-    Heuristic DOM-based extraction of automotive intelligence fields.
+def _first_attr(soup: BeautifulSoup, selectors: List[str], attr: str) -> Optional[str]:
+    """Try each selector and return first non-empty attribute value."""
+    for sel in selectors:
+        try:
+            el = soup.select_one(sel)
+            if not el:
+                continue
+            val = el.get(attr)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+        except Exception:
+            continue
+    return None
 
-    Args:
-        clean_html: Lightly cleaned HTML (boilerplate mostly removed).
-        source_url: Original source URL.
 
-    Returns:
-        Dict with discovered automotive fields.
-    """
+def extract_dom(clean_html: str, source_url: str = "") -> Dict[str, Any]:
+    """Extract core fields from cleaned HTML using DOM heuristics."""
     if not clean_html:
         return {}
 
@@ -85,13 +96,30 @@ def extract_from_dom(clean_html: str, source_url: str = "") -> Dict[str, Any]:
         logger.error("BS4 parse error in dom_extractor: %s", exc)
         return {}
 
+    publish_date = _first_attr(soup, _PUBLISH_DATE_SELECTORS, "datetime")
+    if not publish_date:
+        publish_date = _first_attr(soup, _PUBLISH_DATE_SELECTORS, "content")
+
+    body_text = _first_text(soup, _BODY_SELECTORS)
+    if not body_text:
+        body_text = soup.get_text(separator=" ", strip=True)
+
     result: Dict[str, Any] = {
         "brand": _first_text(soup, _BRAND_SELECTORS),
         "model": _first_text(soup, _MODEL_SELECTORS),
         "rating": _first_text(soup, _RATING_SELECTORS),
         "price": _first_text(soup, _PRICE_SELECTORS),
         "title": _first_text(soup, ["h1", "title"]),
-        "body_text": soup.get_text(separator=" ", strip=True),
+        "author": _first_text(soup, _AUTHOR_SELECTORS),
+        "publish_date": publish_date,
+        "product_name": _first_text(soup, ["h1", "h2", ".product-name", ".vehicle-model"]),
+        "body_text": body_text,
+        "source_url": source_url,
     }
 
     return result
+
+
+def extract_from_dom(clean_html: str, source_url: str = "") -> Dict[str, Any]:
+    """Backward-compatible alias for older imports."""
+    return extract_dom(clean_html, source_url)

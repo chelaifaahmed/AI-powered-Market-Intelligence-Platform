@@ -1276,3 +1276,246 @@
 2026-03-09T10:29:55 | INFO     | scrapers.market_news_demo | Parsed 1 record(s) from https://www.autonews.com/
 2026-03-09T10:29:55 | INFO     | scrapers.market_news_demo | Run complete — 1 total records from 4 URL(s)
 2026-03-09T10:29:55 | DEBUG    | scrapers.http_client | HttpClient session closed.
+2026-03-10T12:20:08 | DEBUG    | scrapers.http_client | HttpClient initialised (timeout=15s, max_retries=3, rate_limiter=RateLimiter(requests_per_second=1.0, min_interval=1.000s))
+2026-03-10T12:20:08 | INFO     | scrapers.car_reviews_demo | Scraper 'car_reviews_demo' initialised — 4 URL(s) queued, rate=1.00 req/s
+2026-03-10T12:20:08 | INFO     | scrapers.car_reviews_demo | Starting run — source='car_reviews_demo', 4 URL(s)
+2026-03-10T12:20:08 | INFO     | scrapers.car_reviews_demo | Processing URL 1/4: https://www.caranddriver.com/toyota/camry
+2026-03-10T12:20:08 | INFO     | scrapers.car_reviews_demo | Fetching: https://www.caranddriver.com/toyota/camry
+2026-03-10T12:20:08 | INFO     | scrapers.http_client | GET https://www.caranddriver.com/toyota/camry  (UA: Mozilla/5.0 (Macintosh; Intel Mac OS X 1…)
+2026-03-10T12:20:09 | INFO     | scrapers.http_client | GET https://www.caranddriver.com/toyota/camry → 200 (2027004 bytes)
+2026-03-10T12:20:09 | INFO     | scrapers.car_reviews_demo | Fetched https://www.caranddriver.com/toyota/camry — status=200, size=2026757 chars
+2026-03-10T12:20:09 | DEBUG    | scrapers.car_reviews_demo | run_id=246db9d4-7724-4959-9ba8-a2cbcb44de0c provided; raw_pages currently stores task-level lineage only.
+2026-03-10T12:20:09 | DEBUG    | scrapers.car_reviews_demo | Stored raw_page for https://www.caranddriver.com/toyota/camry (hash=a2eefe4fb6fd143f…)
+2026-03-10T12:20:09 | INFO     | scrapers.car_reviews_demo | Parsed car review: '2026 Toyota Camry Review, Pricing, and Specs'
+2026-03-10T12:20:09 | INFO     | scrapers.car_reviews_demo | Parsed 1 car reviews.
+2026-03-10T12:20:09 | INFO     | scrapers.car_reviews_demo | Parsed 1 record(s) from https://www.caranddriver.com/toyota/camry
+2026-03-10T12:20:09 | INFO     | scrapers.car_reviews_demo | Processing URL 2/4: https://www.motortrend.com/cars/honda/accord/
+2026-03-10T12:20:09 | INFO     | scrapers.car_reviews_demo | Fetching: https://www.motortrend.com/cars/honda/accord/
+2026-03-10T12:20:09 | INFO     | scrapers.http_client | GET https://www.motortrend.com/cars/honda/accord/  (UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64…)
+2026-03-10T12:20:10 | INFO     | scrapers.http_client | GET https://www.motortrend.com/cars/honda/accord/ → 200 (4222817 bytes)
+2026-03-10T12:20:10 | INFO     | scrapers.car_reviews_demo | Fetched https://www.motortrend.com/cars/honda/accord/ — status=200, size=4222773 chars
+2026-03-10T12:20:10 | DEBUG    | scrapers.car_reviews_demo | run_id=246db9d4-7724-4959-9ba8-a2cbcb44de0c provided; raw_pages currently stores task-level lineage only.
+2026-03-10T12:20:10 | DEBUG    | scrapers.car_reviews_demo | Stored raw_page for https://www.motortrend.com/cars/honda/accord/ (hash=db05f066564b9e24…)
+2026-03-10T12:20:10 | INFO     | scrapers.car_reviews_demo | Parsed car review: '2026 Honda Accord Review: Expert Insights, Pricing, and Trims'
+2026-03-10T12:20:10 | INFO     | scrapers.car_reviews_demo | Parsed 1 car reviews.
+2026-03-10T12:20:10 | INFO     | scrapers.car_reviews_demo | Parsed 1 record(s) from https://www.motortrend.com/cars/honda/accord/
+2026-03-10T12:20:10 | INFO     | scrapers.car_reviews_demo | Processing URL 3/4: https://www.caranddriver.com/ford/f-150
+2026-03-10T12:20:10 | INFO     | scrapers.car_reviews_demo | Fetching: https://www.caranddriver.com/ford/f-150
+2026-03-10T12:20:10 | INFO     | scrapers.http_client | GET https://www.caranddriver.com/ford/f-150  (UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64…)
+2026-03-10T12:20:10 | INFO     | scrapers.http_client | GET https://www.caranddriver.com/ford/f-150 → 200 (1916489 bytes)
+2026-03-10T12:20:10 | INFO     | scrapers.car_reviews_demo | Fetched https://www.caranddriver.com/ford/f-150 — status=200, size=1916259 chars
+2026-03-10T12:20:11 | DEBUG    | scrapers.car_reviews_demo | run_id=246db9d4-7724-4959-9ba8-a2cbcb44de0c provided; raw_pages currently stores task-level lineage only.
+2026-03-10T12:20:11 | DEBUG    | scrapers.car_reviews_demo | Stored raw_page for https://www.caranddriver.com/ford/f-150 (hash=f326a1b819e430a4…)
+2026-03-10T12:20:11 | INFO     | scrapers.car_reviews_demo | Parsed car review: '2026 Ford F-150 Review, Pricing, and Specs'
+2026-03-10T12:20:11 | INFO     | scrapers.car_reviews_demo | Parsed 1 car reviews.
+2026-03-10T12:20:11 | INFO     | scrapers.car_reviews_demo | Parsed 1 record(s) from https://www.caranddriver.com/ford/f-150
+2026-03-10T12:20:11 | INFO     | scrapers.car_reviews_demo | Processing URL 4/4: https://www.motortrend.com/cars/tesla/model-3/
+2026-03-10T12:20:11 | INFO     | scrapers.car_reviews_demo | Fetching: https://www.motortrend.com/cars/tesla/model-3/
+2026-03-10T12:20:11 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 0.609 s (interval=1.000 s, elapsed=0.391 s)
+2026-03-10T12:20:11 | INFO     | scrapers.http_client | GET https://www.motortrend.com/cars/tesla/model-3/  (UA: Mozilla/5.0 (Android 13; Mobile; rv:122.…)
+2026-03-10T12:20:12 | INFO     | scrapers.http_client | GET https://www.motortrend.com/cars/tesla/model-3/ → 200 (4212120 bytes)
+2026-03-10T12:20:12 | INFO     | scrapers.car_reviews_demo | Fetched https://www.motortrend.com/cars/tesla/model-3/ — status=200, size=4211964 chars
+2026-03-10T12:20:12 | DEBUG    | scrapers.car_reviews_demo | run_id=246db9d4-7724-4959-9ba8-a2cbcb44de0c provided; raw_pages currently stores task-level lineage only.
+2026-03-10T12:20:12 | DEBUG    | scrapers.car_reviews_demo | Stored raw_page for https://www.motortrend.com/cars/tesla/model-3/ (hash=48944b28211e4c98…)
+2026-03-10T12:20:12 | INFO     | scrapers.car_reviews_demo | Parsed car review: '2026 Tesla Model 3 Review: Expert Insights, Pricing, and Trims'
+2026-03-10T12:20:12 | INFO     | scrapers.car_reviews_demo | Parsed 1 car reviews.
+2026-03-10T12:20:12 | INFO     | scrapers.car_reviews_demo | Parsed 1 record(s) from https://www.motortrend.com/cars/tesla/model-3/
+2026-03-10T12:20:12 | INFO     | scrapers.car_reviews_demo | Run complete — 4 total records from 4 URL(s)
+2026-03-10T12:20:12 | DEBUG    | scrapers.http_client | HttpClient session closed.
+2026-03-16T02:24:31 | DEBUG    | scrapers.http_client | HttpClient initialised (timeout=15s, max_retries=3, rate_limiter=RateLimiter(requests_per_second=1.0, min_interval=1.000s))
+2026-03-16T02:24:31 | INFO     | scrapers.car_reviews_demo | Scraper 'car_reviews_demo' initialised — 4 URL(s) queued, rate=1.00 req/s
+2026-03-16T02:24:31 | INFO     | scrapers.car_reviews_demo | Starting run — source='car_reviews_demo', 4 URL(s)
+2026-03-16T02:24:31 | INFO     | scrapers.car_reviews_demo | Fetching URL 1/4: https://www.caranddriver.com/toyota/camry
+2026-03-16T02:24:31 | INFO     | scrapers.car_reviews_demo | Fetching: https://www.caranddriver.com/toyota/camry
+2026-03-16T02:24:31 | INFO     | scrapers.http_client | GET https://www.caranddriver.com/toyota/camry  (UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64…)
+2026-03-16T02:24:32 | INFO     | scrapers.http_client | GET https://www.caranddriver.com/toyota/camry → 200 (2033043 bytes)
+2026-03-16T02:24:32 | INFO     | scrapers.car_reviews_demo | Fetched https://www.caranddriver.com/toyota/camry — status=200, size=2032789 chars
+2026-03-16T02:24:32 | DEBUG    | scrapers.car_reviews_demo | run_id=e3fea3b3-d729-46e9-8a9a-c24472041de8 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:32 | DEBUG    | scrapers.car_reviews_demo | Stored raw_page for https://www.caranddriver.com/toyota/camry (hash=cdc26312887d6cd2…)
+2026-03-16T02:24:32 | INFO     | scrapers.car_reviews_demo | Fetching URL 2/4: https://www.motortrend.com/cars/honda/accord/
+2026-03-16T02:24:32 | INFO     | scrapers.car_reviews_demo | Fetching: https://www.motortrend.com/cars/honda/accord/
+2026-03-16T02:24:32 | INFO     | scrapers.http_client | GET https://www.motortrend.com/cars/honda/accord/  (UA: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; …)
+2026-03-16T02:24:34 | INFO     | scrapers.http_client | GET https://www.motortrend.com/cars/honda/accord/ → 200 (4226530 bytes)
+2026-03-16T02:24:34 | INFO     | scrapers.car_reviews_demo | Fetched https://www.motortrend.com/cars/honda/accord/ — status=200, size=4226486 chars
+2026-03-16T02:24:34 | DEBUG    | scrapers.car_reviews_demo | run_id=e3fea3b3-d729-46e9-8a9a-c24472041de8 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:34 | DEBUG    | scrapers.car_reviews_demo | Stored raw_page for https://www.motortrend.com/cars/honda/accord/ (hash=07e05e9de79622e2…)
+2026-03-16T02:24:34 | INFO     | scrapers.car_reviews_demo | Fetching URL 3/4: https://www.caranddriver.com/ford/f-150
+2026-03-16T02:24:34 | INFO     | scrapers.car_reviews_demo | Fetching: https://www.caranddriver.com/ford/f-150
+2026-03-16T02:24:34 | INFO     | scrapers.http_client | GET https://www.caranddriver.com/ford/f-150  (UA: Mozilla/5.0 (Android 13; Mobile; rv:122.…)
+2026-03-16T02:24:34 | INFO     | scrapers.http_client | GET https://www.caranddriver.com/ford/f-150 → 200 (1913984 bytes)
+2026-03-16T02:24:34 | INFO     | scrapers.car_reviews_demo | Fetched https://www.caranddriver.com/ford/f-150 — status=200, size=1913759 chars
+2026-03-16T02:24:34 | DEBUG    | scrapers.car_reviews_demo | run_id=e3fea3b3-d729-46e9-8a9a-c24472041de8 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:34 | DEBUG    | scrapers.car_reviews_demo | Stored raw_page for https://www.caranddriver.com/ford/f-150 (hash=eaa871511b8b5aeb…)
+2026-03-16T02:24:34 | INFO     | scrapers.car_reviews_demo | Fetching URL 4/4: https://www.motortrend.com/cars/tesla/model-3/
+2026-03-16T02:24:34 | INFO     | scrapers.car_reviews_demo | Fetching: https://www.motortrend.com/cars/tesla/model-3/
+2026-03-16T02:24:34 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 0.531 s (interval=1.000 s, elapsed=0.469 s)
+2026-03-16T02:24:35 | INFO     | scrapers.http_client | GET https://www.motortrend.com/cars/tesla/model-3/  (UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64…)
+2026-03-16T02:24:36 | INFO     | scrapers.http_client | GET https://www.motortrend.com/cars/tesla/model-3/ → 200 (4216247 bytes)
+2026-03-16T02:24:36 | INFO     | scrapers.car_reviews_demo | Fetched https://www.motortrend.com/cars/tesla/model-3/ — status=200, size=4216091 chars
+2026-03-16T02:24:36 | DEBUG    | scrapers.car_reviews_demo | run_id=e3fea3b3-d729-46e9-8a9a-c24472041de8 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:36 | DEBUG    | scrapers.car_reviews_demo | Stored raw_page for https://www.motortrend.com/cars/tesla/model-3/ (hash=1492aa90363d4e20…)
+2026-03-16T02:24:36 | INFO     | scrapers.car_reviews_demo | Run complete — 4 page(s) fetched, 12389804 byte(s) downloaded
+2026-03-16T02:24:36 | DEBUG    | scrapers.http_client | HttpClient session closed.
+2026-03-16T02:24:36 | DEBUG    | scrapers.http_client | HttpClient initialised (timeout=15s, max_retries=3, rate_limiter=RateLimiter(requests_per_second=1.0, min_interval=1.000s))
+2026-03-16T02:24:36 | INFO     | scrapers.insurance_reviews_demo | Scraper 'insurance_reviews_demo' initialised — 4 URL(s) queued, rate=1.00 req/s
+2026-03-16T02:24:36 | INFO     | scrapers.insurance_reviews_demo | Starting run — source='insurance_reviews_demo', 4 URL(s)
+2026-03-16T02:24:36 | INFO     | scrapers.insurance_reviews_demo | Fetching URL 1/4: https://www.nerdwallet.com/reviews/insurance/geico
+2026-03-16T02:24:36 | INFO     | scrapers.insurance_reviews_demo | Fetching: https://www.nerdwallet.com/reviews/insurance/geico
+2026-03-16T02:24:36 | INFO     | scrapers.http_client | GET https://www.nerdwallet.com/reviews/insurance/geico  (UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64…)
+2026-03-16T02:24:38 | INFO     | scrapers.http_client | GET https://www.nerdwallet.com/reviews/insurance/geico → 200 (1304608 bytes)
+2026-03-16T02:24:38 | INFO     | scrapers.insurance_reviews_demo | Fetched https://www.nerdwallet.com/reviews/insurance/geico — status=200, size=1304420 chars
+2026-03-16T02:24:38 | DEBUG    | scrapers.insurance_reviews_demo | run_id=669487d1-70bd-4ad7-b363-765610a7f9df provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:38 | DEBUG    | scrapers.insurance_reviews_demo | Stored raw_page for https://www.nerdwallet.com/reviews/insurance/geico (hash=313661ac130092dc…)
+2026-03-16T02:24:38 | INFO     | scrapers.insurance_reviews_demo | Fetching URL 2/4: https://www.forbes.com/advisor/car-insurance/reviews/state-farm/
+2026-03-16T02:24:38 | INFO     | scrapers.insurance_reviews_demo | Fetching: https://www.forbes.com/advisor/car-insurance/reviews/state-farm/
+2026-03-16T02:24:38 | INFO     | scrapers.http_client | GET https://www.forbes.com/advisor/car-insurance/reviews/state-farm/  (UA: Mozilla/5.0 (Macintosh; Intel Mac OS X 1…)
+2026-03-16T02:24:38 | ERROR    | scrapers.http_client | HTTP error fetching https://www.forbes.com/advisor/car-insurance/reviews/state-farm/ → status=403: 403 Client Error: Forbidden for url: https://www.forbes.com/advisor/car-insurance/reviews/state-farm/
+2026-03-16T02:24:38 | ERROR    | scrapers.insurance_reviews_demo | Failed to fetch https://www.forbes.com/advisor/car-insurance/reviews/state-farm/ — HTTPError: 403 Client Error: Forbidden for url: https://www.forbes.com/advisor/car-insurance/reviews/state-farm/
+2026-03-16T02:24:38 | DEBUG    | scrapers.insurance_reviews_demo | run_id=669487d1-70bd-4ad7-b363-765610a7f9df provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:38 | DEBUG    | scrapers.insurance_reviews_demo | Stored raw_page for https://www.forbes.com/advisor/car-insurance/reviews/state-farm/ (hash=…)
+2026-03-16T02:24:38 | INFO     | scrapers.insurance_reviews_demo | Fetching URL 3/4: https://www.nerdwallet.com/reviews/insurance/progressive
+2026-03-16T02:24:38 | INFO     | scrapers.insurance_reviews_demo | Fetching: https://www.nerdwallet.com/reviews/insurance/progressive
+2026-03-16T02:24:38 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 0.531 s (interval=1.000 s, elapsed=0.469 s)
+2026-03-16T02:24:39 | INFO     | scrapers.http_client | GET https://www.nerdwallet.com/reviews/insurance/progressive  (UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64…)
+2026-03-16T02:24:39 | INFO     | scrapers.http_client | GET https://www.nerdwallet.com/reviews/insurance/progressive → 200 (1315206 bytes)
+2026-03-16T02:24:39 | INFO     | scrapers.insurance_reviews_demo | Fetched https://www.nerdwallet.com/reviews/insurance/progressive — status=200, size=1314934 chars
+2026-03-16T02:24:40 | DEBUG    | scrapers.insurance_reviews_demo | run_id=669487d1-70bd-4ad7-b363-765610a7f9df provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:40 | DEBUG    | scrapers.insurance_reviews_demo | Stored raw_page for https://www.nerdwallet.com/reviews/insurance/progressive (hash=4cc6a53543f7607a…)
+2026-03-16T02:24:40 | INFO     | scrapers.insurance_reviews_demo | Fetching URL 4/4: https://www.forbes.com/advisor/car-insurance/reviews/allstate/
+2026-03-16T02:24:40 | INFO     | scrapers.insurance_reviews_demo | Fetching: https://www.forbes.com/advisor/car-insurance/reviews/allstate/
+2026-03-16T02:24:40 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 0.421 s (interval=1.000 s, elapsed=0.579 s)
+2026-03-16T02:24:40 | INFO     | scrapers.http_client | GET https://www.forbes.com/advisor/car-insurance/reviews/allstate/  (UA: Mozilla/5.0 (Macintosh; Intel Mac OS X 1…)
+2026-03-16T02:24:40 | ERROR    | scrapers.http_client | HTTP error fetching https://www.forbes.com/advisor/car-insurance/reviews/allstate/ → status=403: 403 Client Error: Forbidden for url: https://www.forbes.com/advisor/car-insurance/reviews/allstate/
+2026-03-16T02:24:40 | ERROR    | scrapers.insurance_reviews_demo | Failed to fetch https://www.forbes.com/advisor/car-insurance/reviews/allstate/ — HTTPError: 403 Client Error: Forbidden for url: https://www.forbes.com/advisor/car-insurance/reviews/allstate/
+2026-03-16T02:24:40 | DEBUG    | scrapers.insurance_reviews_demo | run_id=669487d1-70bd-4ad7-b363-765610a7f9df provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:40 | DEBUG    | scrapers.insurance_reviews_demo | Stored raw_page for https://www.forbes.com/advisor/car-insurance/reviews/allstate/ (hash=…)
+2026-03-16T02:24:40 | INFO     | scrapers.insurance_reviews_demo | Run complete — 2 page(s) fetched, 2619814 byte(s) downloaded
+2026-03-16T02:24:40 | DEBUG    | scrapers.http_client | HttpClient session closed.
+2026-03-16T02:24:40 | DEBUG    | scrapers.http_client | HttpClient initialised (timeout=15s, max_retries=3, rate_limiter=RateLimiter(requests_per_second=1.0, min_interval=1.000s))
+2026-03-16T02:24:40 | INFO     | scrapers.market_news_demo | Scraper 'market_news_demo' initialised — 4 URL(s) queued, rate=1.00 req/s
+2026-03-16T02:24:40 | INFO     | scrapers.market_news_demo | Starting run — source='market_news_demo', 4 URL(s)
+2026-03-16T02:24:40 | INFO     | scrapers.market_news_demo | Fetching URL 1/4: https://www.reuters.com/business/autos-transportation/
+2026-03-16T02:24:40 | INFO     | scrapers.market_news_demo | Fetching: https://www.reuters.com/business/autos-transportation/
+2026-03-16T02:24:40 | INFO     | scrapers.http_client | GET https://www.reuters.com/business/autos-transportation/  (UA: Mozilla/5.0 (Macintosh; Intel Mac OS X 1…)
+2026-03-16T02:24:41 | ERROR    | scrapers.http_client | HTTP error fetching https://www.reuters.com/business/autos-transportation/ → status=401: 401 Client Error: HTTP Forbidden for url: https://www.reuters.com/business/autos-transportation/
+2026-03-16T02:24:41 | ERROR    | scrapers.market_news_demo | Failed to fetch https://www.reuters.com/business/autos-transportation/ — HTTPError: 401 Client Error: HTTP Forbidden for url: https://www.reuters.com/business/autos-transportation/
+2026-03-16T02:24:41 | DEBUG    | scrapers.market_news_demo | run_id=7abd38e3-0739-4058-b5d4-d8b5b122230f provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:41 | DEBUG    | scrapers.market_news_demo | Stored raw_page for https://www.reuters.com/business/autos-transportation/ (hash=…)
+2026-03-16T02:24:41 | INFO     | scrapers.market_news_demo | Fetching URL 2/4: https://www.bloomberg.com/markets/sectors/consumer-discretionary/automobiles-components
+2026-03-16T02:24:41 | INFO     | scrapers.market_news_demo | Fetching: https://www.bloomberg.com/markets/sectors/consumer-discretionary/automobiles-components
+2026-03-16T02:24:41 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 0.422 s (interval=1.000 s, elapsed=0.578 s)
+2026-03-16T02:24:41 | INFO     | scrapers.http_client | GET https://www.bloomberg.com/markets/sectors/consumer-discretionary/automobiles-components  (UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64…)
+2026-03-16T02:24:42 | ERROR    | scrapers.http_client | HTTP error fetching https://www.bloomberg.com/markets/sectors/consumer-discretionary/automobiles-components → status=403: 403 Client Error: Forbidden for url: https://www.bloomberg.com/markets/sectors/consumer-discretionary/automobiles-components
+2026-03-16T02:24:42 | ERROR    | scrapers.market_news_demo | Failed to fetch https://www.bloomberg.com/markets/sectors/consumer-discretionary/automobiles-components — HTTPError: 403 Client Error: Forbidden for url: https://www.bloomberg.com/markets/sectors/consumer-discretionary/automobiles-components
+2026-03-16T02:24:42 | DEBUG    | scrapers.market_news_demo | run_id=7abd38e3-0739-4058-b5d4-d8b5b122230f provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:42 | DEBUG    | scrapers.market_news_demo | Stored raw_page for https://www.bloomberg.com/markets/sectors/consumer-discretionary/automobiles-components (hash=…)
+2026-03-16T02:24:42 | INFO     | scrapers.market_news_demo | Fetching URL 3/4: https://www.cnn.com/business/autos
+2026-03-16T02:24:42 | INFO     | scrapers.market_news_demo | Fetching: https://www.cnn.com/business/autos
+2026-03-16T02:24:42 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 0.406 s (interval=1.000 s, elapsed=0.594 s)
+2026-03-16T02:24:42 | INFO     | scrapers.http_client | GET https://www.cnn.com/business/autos  (UA: Mozilla/5.0 (Linux; Android 14; Pixel 8)…)
+2026-03-16T02:24:44 | ERROR    | scrapers.http_client | HTTP error fetching https://www.cnn.com/business/autos → status=404: 404 Client Error: Not Found for url: https://edition.cnn.com/business/autos
+2026-03-16T02:24:44 | ERROR    | scrapers.market_news_demo | Failed to fetch https://www.cnn.com/business/autos — HTTPError: 404 Client Error: Not Found for url: https://edition.cnn.com/business/autos
+2026-03-16T02:24:44 | DEBUG    | scrapers.market_news_demo | run_id=7abd38e3-0739-4058-b5d4-d8b5b122230f provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:44 | DEBUG    | scrapers.market_news_demo | Stored raw_page for https://www.cnn.com/business/autos (hash=…)
+2026-03-16T02:24:44 | INFO     | scrapers.market_news_demo | Fetching URL 4/4: https://www.autonews.com/
+2026-03-16T02:24:44 | INFO     | scrapers.market_news_demo | Fetching: https://www.autonews.com/
+2026-03-16T02:24:44 | INFO     | scrapers.http_client | GET https://www.autonews.com/  (UA: Mozilla/5.0 (Linux; Android 13; SM-G991B…)
+2026-03-16T02:24:46 | INFO     | scrapers.http_client | GET https://www.autonews.com/ → 200 (4122366 bytes)
+2026-03-16T02:24:46 | INFO     | scrapers.market_news_demo | Fetched https://www.autonews.com/ — status=200, size=4118653 chars
+2026-03-16T02:24:46 | DEBUG    | scrapers.market_news_demo | run_id=7abd38e3-0739-4058-b5d4-d8b5b122230f provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:46 | DEBUG    | scrapers.market_news_demo | Stored raw_page for https://www.autonews.com/ (hash=e47f7f8b9aace26d…)
+2026-03-16T02:24:46 | INFO     | scrapers.market_news_demo | Run complete — 1 page(s) fetched, 4122366 byte(s) downloaded
+2026-03-16T02:24:46 | DEBUG    | scrapers.http_client | HttpClient session closed.
+2026-03-16T02:24:46 | DEBUG    | scrapers.http_client | HttpClient initialised (timeout=15s, max_retries=3, rate_limiter=RateLimiter(requests_per_second=0.5, min_interval=2.000s))
+2026-03-16T02:24:46 | INFO     | scrapers.car_listings | Scraper 'car_listings' initialised — 5 URL(s) queued, rate=0.50 req/s
+2026-03-16T02:24:46 | INFO     | scrapers.car_listings | Starting run — source='car_listings', 5 URL(s)
+2026-03-16T02:24:46 | INFO     | scrapers.car_listings | Fetching URL 1/5: https://www.autoscout24.com/lst/toyota/camry
+2026-03-16T02:24:46 | INFO     | scrapers.car_listings | Fetching: https://www.autoscout24.com/lst/toyota/camry
+2026-03-16T02:24:46 | INFO     | scrapers.http_client | GET https://www.autoscout24.com/lst/toyota/camry  (UA: Mozilla/5.0 (Linux; Android 14; Pixel 8)…)
+2026-03-16T02:24:47 | INFO     | scrapers.http_client | GET https://www.autoscout24.com/lst/toyota/camry → 200 (702444 bytes)
+2026-03-16T02:24:47 | INFO     | scrapers.car_listings | Fetched https://www.autoscout24.com/lst/toyota/camry — status=200, size=702030 chars
+2026-03-16T02:24:47 | DEBUG    | scrapers.car_listings | run_id=2ae36732-27e3-45db-bd31-39b5a3b75f62 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:47 | DEBUG    | scrapers.car_listings | Stored raw_page for https://www.autoscout24.com/lst/toyota/camry (hash=6f685d99b1ef61a5…)
+2026-03-16T02:24:47 | INFO     | scrapers.car_listings | Fetching URL 2/5: https://www.autoscout24.com/lst/honda/accord
+2026-03-16T02:24:47 | INFO     | scrapers.car_listings | Fetching: https://www.autoscout24.com/lst/honda/accord
+2026-03-16T02:24:47 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 1.047 s (interval=2.000 s, elapsed=0.953 s)
+2026-03-16T02:24:48 | INFO     | scrapers.http_client | GET https://www.autoscout24.com/lst/honda/accord  (UA: Mozilla/5.0 (X11; Linux x86_64) AppleWeb…)
+2026-03-16T02:24:48 | INFO     | scrapers.http_client | GET https://www.autoscout24.com/lst/honda/accord → 200 (696593 bytes)
+2026-03-16T02:24:48 | INFO     | scrapers.car_listings | Fetched https://www.autoscout24.com/lst/honda/accord — status=200, size=696216 chars
+2026-03-16T02:24:49 | DEBUG    | scrapers.car_listings | run_id=2ae36732-27e3-45db-bd31-39b5a3b75f62 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:49 | DEBUG    | scrapers.car_listings | Stored raw_page for https://www.autoscout24.com/lst/honda/accord (hash=53450b4d503d43d2…)
+2026-03-16T02:24:49 | INFO     | scrapers.car_listings | Fetching URL 3/5: https://www.autoscout24.com/lst/ford/f-150
+2026-03-16T02:24:49 | INFO     | scrapers.car_listings | Fetching: https://www.autoscout24.com/lst/ford/f-150
+2026-03-16T02:24:49 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 1.266 s (interval=2.000 s, elapsed=0.734 s)
+2026-03-16T02:24:50 | INFO     | scrapers.http_client | GET https://www.autoscout24.com/lst/ford/f-150  (UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64…)
+2026-03-16T02:24:50 | INFO     | scrapers.http_client | GET https://www.autoscout24.com/lst/ford/f-150 → 200 (705282 bytes)
+2026-03-16T02:24:50 | INFO     | scrapers.car_listings | Fetched https://www.autoscout24.com/lst/ford/f-150 — status=200, size=704879 chars
+2026-03-16T02:24:50 | DEBUG    | scrapers.car_listings | run_id=2ae36732-27e3-45db-bd31-39b5a3b75f62 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:50 | DEBUG    | scrapers.car_listings | Stored raw_page for https://www.autoscout24.com/lst/ford/f-150 (hash=99463da92762f628…)
+2026-03-16T02:24:50 | INFO     | scrapers.car_listings | Fetching URL 4/5: https://www.autoscout24.com/lst/tesla/model-3
+2026-03-16T02:24:50 | INFO     | scrapers.car_listings | Fetching: https://www.autoscout24.com/lst/tesla/model-3
+2026-03-16T02:24:50 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 1.422 s (interval=2.000 s, elapsed=0.578 s)
+2026-03-16T02:24:52 | INFO     | scrapers.http_client | GET https://www.autoscout24.com/lst/tesla/model-3  (UA: Mozilla/5.0 (Macintosh; Intel Mac OS X 1…)
+2026-03-16T02:24:52 | INFO     | scrapers.http_client | GET https://www.autoscout24.com/lst/tesla/model-3 → 200 (713069 bytes)
+2026-03-16T02:24:52 | INFO     | scrapers.car_listings | Fetched https://www.autoscout24.com/lst/tesla/model-3 — status=200, size=712675 chars
+2026-03-16T02:24:52 | DEBUG    | scrapers.car_listings | run_id=2ae36732-27e3-45db-bd31-39b5a3b75f62 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:52 | DEBUG    | scrapers.car_listings | Stored raw_page for https://www.autoscout24.com/lst/tesla/model-3 (hash=0f8d27c5fde75a7c…)
+2026-03-16T02:24:52 | INFO     | scrapers.car_listings | Fetching URL 5/5: https://www.autoscout24.com/lst/volkswagen/golf
+2026-03-16T02:24:52 | INFO     | scrapers.car_listings | Fetching: https://www.autoscout24.com/lst/volkswagen/golf
+2026-03-16T02:24:52 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 1.391 s (interval=2.000 s, elapsed=0.609 s)
+2026-03-16T02:24:54 | INFO     | scrapers.http_client | GET https://www.autoscout24.com/lst/volkswagen/golf  (UA: Mozilla/5.0 (Macintosh; Intel Mac OS X 1…)
+2026-03-16T02:24:55 | INFO     | scrapers.http_client | GET https://www.autoscout24.com/lst/volkswagen/golf → 200 (721996 bytes)
+2026-03-16T02:24:55 | INFO     | scrapers.car_listings | Fetched https://www.autoscout24.com/lst/volkswagen/golf — status=200, size=721607 chars
+2026-03-16T02:24:55 | DEBUG    | scrapers.car_listings | run_id=2ae36732-27e3-45db-bd31-39b5a3b75f62 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:55 | DEBUG    | scrapers.car_listings | Stored raw_page for https://www.autoscout24.com/lst/volkswagen/golf (hash=3916da143d3ef68a…)
+2026-03-16T02:24:55 | INFO     | scrapers.car_listings | Run complete — 5 page(s) fetched, 3539384 byte(s) downloaded
+2026-03-16T02:24:55 | DEBUG    | scrapers.http_client | HttpClient session closed.
+2026-03-16T02:24:55 | DEBUG    | scrapers.http_client | HttpClient initialised (timeout=15s, max_retries=3, rate_limiter=RateLimiter(requests_per_second=0.5, min_interval=2.000s))
+2026-03-16T02:24:55 | INFO     | scrapers.competitor_pricing | Scraper 'competitor_pricing' initialised — 5 URL(s) queued, rate=0.50 req/s
+2026-03-16T02:24:55 | INFO     | scrapers.competitor_pricing | Starting run — source='competitor_pricing', 5 URL(s)
+2026-03-16T02:24:55 | INFO     | scrapers.competitor_pricing | Fetching URL 1/5: https://www.comparethemarket.com/car-insurance/
+2026-03-16T02:24:55 | INFO     | scrapers.competitor_pricing | Fetching: https://www.comparethemarket.com/car-insurance/
+2026-03-16T02:24:55 | INFO     | scrapers.http_client | GET https://www.comparethemarket.com/car-insurance/  (UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64…)
+2026-03-16T02:24:55 | ERROR    | scrapers.http_client | HTTP error fetching https://www.comparethemarket.com/car-insurance/ → status=403: 403 Client Error: Forbidden for url: https://www.comparethemarket.com/car-insurance/
+2026-03-16T02:24:55 | ERROR    | scrapers.competitor_pricing | Failed to fetch https://www.comparethemarket.com/car-insurance/ — HTTPError: 403 Client Error: Forbidden for url: https://www.comparethemarket.com/car-insurance/
+2026-03-16T02:24:55 | DEBUG    | scrapers.competitor_pricing | run_id=52208d75-d8fe-4b3e-adc9-80490eae9571 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:55 | DEBUG    | scrapers.competitor_pricing | Stored raw_page for https://www.comparethemarket.com/car-insurance/ (hash=…)
+2026-03-16T02:24:55 | INFO     | scrapers.competitor_pricing | Fetching URL 2/5: https://www.moneysupermarket.com/car-insurance/
+2026-03-16T02:24:55 | INFO     | scrapers.competitor_pricing | Fetching: https://www.moneysupermarket.com/car-insurance/
+2026-03-16T02:24:55 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 1.203 s (interval=2.000 s, elapsed=0.797 s)
+2026-03-16T02:24:57 | INFO     | scrapers.http_client | GET https://www.moneysupermarket.com/car-insurance/  (UA: Mozilla/5.0 (X11; Linux x86_64) AppleWeb…)
+2026-03-16T02:24:57 | ERROR    | scrapers.http_client | HTTP error fetching https://www.moneysupermarket.com/car-insurance/ → status=403: 403 Client Error: Forbidden for url: https://www.moneysupermarket.com/car-insurance/
+2026-03-16T02:24:57 | ERROR    | scrapers.competitor_pricing | Failed to fetch https://www.moneysupermarket.com/car-insurance/ — HTTPError: 403 Client Error: Forbidden for url: https://www.moneysupermarket.com/car-insurance/
+2026-03-16T02:24:57 | DEBUG    | scrapers.competitor_pricing | run_id=52208d75-d8fe-4b3e-adc9-80490eae9571 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:24:57 | DEBUG    | scrapers.competitor_pricing | Stored raw_page for https://www.moneysupermarket.com/car-insurance/ (hash=…)
+2026-03-16T02:24:57 | INFO     | scrapers.competitor_pricing | Fetching URL 3/5: https://www.confused.com/car-insurance
+2026-03-16T02:24:57 | INFO     | scrapers.competitor_pricing | Fetching: https://www.confused.com/car-insurance
+2026-03-16T02:24:57 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 1.453 s (interval=2.000 s, elapsed=0.547 s)
+2026-03-16T02:24:59 | INFO     | scrapers.http_client | GET https://www.confused.com/car-insurance  (UA: Mozilla/5.0 (X11; Linux x86_64) AppleWeb…)
+2026-03-16T02:25:00 | ERROR    | scrapers.http_client | HTTP error fetching https://www.confused.com/car-insurance → status=410: 410 Client Error: Gone for url: https://www.confused.com/car-insurance
+2026-03-16T02:25:00 | ERROR    | scrapers.competitor_pricing | Failed to fetch https://www.confused.com/car-insurance — HTTPError: 410 Client Error: Gone for url: https://www.confused.com/car-insurance
+2026-03-16T02:25:00 | DEBUG    | scrapers.competitor_pricing | run_id=52208d75-d8fe-4b3e-adc9-80490eae9571 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:25:00 | DEBUG    | scrapers.competitor_pricing | Stored raw_page for https://www.confused.com/car-insurance (hash=…)
+2026-03-16T02:25:00 | INFO     | scrapers.competitor_pricing | Fetching URL 4/5: https://www.gocompare.com/car-insurance/
+2026-03-16T02:25:00 | INFO     | scrapers.competitor_pricing | Fetching: https://www.gocompare.com/car-insurance/
+2026-03-16T02:25:00 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 1.140 s (interval=2.000 s, elapsed=0.860 s)
+2026-03-16T02:25:01 | INFO     | scrapers.http_client | GET https://www.gocompare.com/car-insurance/  (UA: Mozilla/5.0 (Linux; Android 13; SM-G991B…)
+2026-03-16T02:25:01 | ERROR    | scrapers.http_client | HTTP error fetching https://www.gocompare.com/car-insurance/ → status=403: 403 Client Error: Forbidden for url: https://www.gocompare.com/car-insurance/
+2026-03-16T02:25:01 | ERROR    | scrapers.competitor_pricing | Failed to fetch https://www.gocompare.com/car-insurance/ — HTTPError: 403 Client Error: Forbidden for url: https://www.gocompare.com/car-insurance/
+2026-03-16T02:25:01 | DEBUG    | scrapers.competitor_pricing | run_id=52208d75-d8fe-4b3e-adc9-80490eae9571 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:25:01 | DEBUG    | scrapers.competitor_pricing | Stored raw_page for https://www.gocompare.com/car-insurance/ (hash=…)
+2026-03-16T02:25:01 | INFO     | scrapers.competitor_pricing | Fetching URL 5/5: https://www.insurancequotes.com/auto
+2026-03-16T02:25:01 | INFO     | scrapers.competitor_pricing | Fetching: https://www.insurancequotes.com/auto
+2026-03-16T02:25:01 | DEBUG    | scrapers.rate_limiter | Rate limiter sleeping 1.422 s (interval=2.000 s, elapsed=0.578 s)
+2026-03-16T02:25:03 | INFO     | scrapers.http_client | GET https://www.insurancequotes.com/auto  (UA: Mozilla/5.0 (X11; Linux x86_64) AppleWeb…)
+2026-03-16T02:25:03 | INFO     | scrapers.http_client | GET https://www.insurancequotes.com/auto → 200 (103767 bytes)
+2026-03-16T02:25:03 | INFO     | scrapers.competitor_pricing | Fetched https://www.insurancequotes.com/auto — status=200, size=103746 chars
+2026-03-16T02:25:03 | DEBUG    | scrapers.competitor_pricing | run_id=52208d75-d8fe-4b3e-adc9-80490eae9571 provided; raw_pages currently stores task-level lineage only.
+2026-03-16T02:25:03 | DEBUG    | scrapers.competitor_pricing | Stored raw_page for https://www.insurancequotes.com/auto (hash=efeea0321607e0e8…)
+2026-03-16T02:25:03 | INFO     | scrapers.competitor_pricing | Run complete — 1 page(s) fetched, 103767 byte(s) downloaded
+2026-03-16T02:25:03 | DEBUG    | scrapers.http_client | HttpClient session closed.
+2026-03-16T02:48:00 | INFO     | scrapers.caranddriver | PlaywrightScraper 'caranddriver' initialised — 8 URL(s) queued
+2026-03-16T02:48:00 | INFO     | scrapers.caranddriver | Starting Playwright run — source='caranddriver', 1 URL(s)
+2026-03-16T02:48:03 | INFO     | scrapers.caranddriver | Fetching URL 1/1: https://www.caranddriver.com/toyota/camry
+2026-03-16T02:48:19 | INFO     | scrapers.caranddriver | Fetched https://www.caranddriver.com/toyota/camry — status=200, size=2090429 chars
+2026-03-16T02:48:20 | INFO     | scrapers.caranddriver | Playwright run complete — 1 page(s) fetched, 2090678 bytes
