@@ -28,8 +28,9 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from database.connection import get_db_session
 from analytics.aggregators import compute_brand_reputation
+from database.connection import get_db_session
+from observability.step_recorder import StepRecorder, derive_step_status
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -52,7 +53,23 @@ def run_analytics() -> None:
     # ------------------------------------------------------------------
     try:
         with get_db_session() as session:
+            recorder = StepRecorder(session, "analytics", component="compute_brand_reputation")
+            recorder.start()
             rep_metrics = compute_brand_reputation(session)
+            total_inserted = (
+                rep_metrics.get("reputation_inserted", 0)
+                + rep_metrics.get("trend_inserted", 0)
+            )
+            recorder.finish(
+                records_seen=rep_metrics.get("brand_periods_found", 0),
+                records_processed=rep_metrics.get("brand_periods_found", 0),
+                records_inserted=total_inserted,
+                status=derive_step_status(
+                    records_processed=rep_metrics.get("brand_periods_found", 0),
+                    records_failed=0,
+                ),
+            )
+            session.commit()
     except Exception as exc:
         logger.exception("compute_brand_reputation failed: %s", exc)
         sys.exit(1)

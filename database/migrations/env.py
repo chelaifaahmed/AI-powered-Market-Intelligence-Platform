@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -52,6 +53,19 @@ if config.config_file_name is not None:
 # Target metadata for `alembic revision --autogenerate`
 # ---------------------------------------------------------------------------
 target_metadata = Base.metadata
+
+
+# ---------------------------------------------------------------------------
+# Partition-table filter — PostgreSQL auto-creates tables like
+# car_reviews_2024, insurance_reviews_2026, etc.  Exclude them from
+# autogenerate so `alembic check` stays clean.
+# ---------------------------------------------------------------------------
+
+def include_name(name, type_, parent_names):
+    if type_ == "table" and re.match(r".+_\d{4}$", name):
+        return False
+    return True
+
 
 # ---------------------------------------------------------------------------
 # Database URL resolution (env var takes priority over alembic.ini)
@@ -93,6 +107,7 @@ def run_migrations_offline() -> None:
         include_schemas=True,
         compare_type=True,
         compare_server_default=True,
+        include_name=include_name,
     )
 
     with context.begin_transaction():
@@ -127,6 +142,7 @@ def _configure_and_run(connection: Connection) -> None:
         # Render ENUM  types so autogenerate detects changes
         user_module_prefix="database.enums.",
         transaction_per_migration=True,
+        include_name=include_name,
     )
 
     with context.begin_transaction():

@@ -25,13 +25,18 @@ def _get_settings():
         return settings
     except (ImportError, ModuleNotFoundError):
         class _FallbackSettings:
+            _db_pw = os.environ.get("DB_PASSWORD", "")
+            _db_user = os.environ.get("DB_USER", "postgres")
+            _db_host = os.environ.get("DB_HOST", "localhost")
+            _db_port = os.environ.get("DB_PORT", "5432")
+            _db_name = os.environ.get("DB_NAME", "automotive_intelligence")
             DATABASE_URL = os.getenv(
                 "DATABASE_URL",
-                "postgresql+psycopg2://postgres:conservatoire@localhost:5432/automotive_intelligence"
+                f"postgresql+psycopg2://{_db_user}:{_db_pw}@{_db_host}:{_db_port}/{_db_name}"
             )
             DATABASE_ASYNC_URL = os.getenv(
                 "DATABASE_ASYNC_URL",
-                "postgresql+asyncpg://postgres:conservatoire@localhost:5432/auto_intelligence"
+                f"postgresql+asyncpg://{_db_user}:{_db_pw}@{_db_host}:{_db_port}/{_db_name}"
             )
             DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
             DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))

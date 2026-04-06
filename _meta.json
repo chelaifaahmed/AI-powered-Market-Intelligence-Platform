@@ -1,0 +1,16 @@
+{
+  "name": "product-self-knowledge",
+  "description": "Knowledge about Anthropic products including Claude.ai, Claude Code, and Claude API. Prioritizes accuracy over guessing and distinguishes between separate products.",
+  "tags": [
+    "meta-tooling",
+    "reference"
+  ],
+  "sub_skills": [],
+  "source": "claude-public",
+  "type": "discipline",
+  "depends_on": [],
+  "enhances": [
+    "internal-comms",
+    "doc-coauthoring"
+  ]
+}

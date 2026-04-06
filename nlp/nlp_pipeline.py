@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from sqlalchemy import exists
 from sqlalchemy.orm import Session
@@ -28,13 +28,27 @@ from nlp.topic_classifier import classify_topics
 
 logger = logging.getLogger("nlp.pipeline")
 
-_MODEL_VERSION = "rule-nlp-v1"
+_MODEL_VERSION_RULE = "rule-nlp-v1"
+_MODEL_VERSION_TRANSFORMER = "distilbert-sst2-v1"
+
+# Resolve actual version at import time so every NlpPipeline instance uses the
+# correct label without having to call _get_pipeline() manually.
+def _resolve_model_version() -> str:
+    """Return the version string for whichever NLP backend will be used."""
+    try:
+        from nlp.sentiment_analyzer import _get_pipeline
+        pipe = _get_pipeline()
+        return _MODEL_VERSION_TRANSFORMER if pipe is not None else _MODEL_VERSION_RULE
+    except Exception:
+        return _MODEL_VERSION_RULE
+
+_ACTIVE_MODEL_VERSION = _resolve_model_version()
 
 
 class NlpPipeline:
     """Production-safe NLP pipeline for reviews and articles."""
 
-    def __init__(self, session: Session, model_version: str = _MODEL_VERSION):
+    def __init__(self, session: Session, model_version: str = _ACTIVE_MODEL_VERSION):
         self.session = session
         self.model_version = model_version
 

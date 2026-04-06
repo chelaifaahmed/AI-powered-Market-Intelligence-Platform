@@ -1,4 +1,4 @@
-﻿"""
+"""
 database/models.py  (hardened v2)
 ----------------------------------
 Production-grade SQLAlchemy ORM models for the AI-Powered Automotive &
@@ -228,6 +228,85 @@ class PipelineRun(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    # Relationship to granular step metrics
+    steps: Mapped[List["PipelineStepRun"]] = relationship(
+        "PipelineStepRun", back_populates="pipeline_run",
+        cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class PipelineStepRun(Base):
+    """
+    Granular per-stage operational metrics for a pipeline execution.
+
+    One row per pipeline stage per run:
+      step_name examples: 'parser', 'nlp_car_reviews', 'nlp_insurance_reviews',
+                          'nlp_articles', 'analytics'
+    Links optionally to a parent PipelineRun row.
+    """
+    __tablename__ = "pipeline_step_runs"
+    __table_args__ = (
+        CheckConstraint("records_seen >= 0",      name="chk_step_seen"),
+        CheckConstraint("records_processed >= 0", name="chk_step_processed"),
+        CheckConstraint("records_skipped >= 0",   name="chk_step_skipped"),
+        CheckConstraint("records_failed >= 0",    name="chk_step_failed"),
+        CheckConstraint("records_inserted >= 0",  name="chk_step_inserted"),
+        CheckConstraint("error_count >= 0",       name="chk_step_errors"),
+        Index("idx_step_name",       "step_name"),
+        Index("idx_step_status",     "status"),
+        Index("idx_step_created",    "created_at"),
+        Index("idx_step_pipeline",   "pipeline_run_id"),
+        Index("idx_step_name_start", "step_name", "started_at"),
+        {"comment": "Per-stage operational metrics: parser / nlp_* / analytics steps."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    pipeline_run_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pipeline_runs.id", ondelete="SET NULL"),
+        comment="Optional link to parent PipelineRun."
+    )
+    step_name: Mapped[str] = mapped_column(
+        String(100), nullable=False,
+        comment="Stage identifier, e.g. 'parser', 'nlp_car_reviews', 'analytics'."
+    )
+    status: Mapped[PipelineStatus] = mapped_column(
+        pg_enum(PipelineStatus, name="pipeline_status"),
+        nullable=False, default=PipelineStatus.RUNNING,
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[Optional[int]] = mapped_column(
+        Integer, comment="Wall-clock duration in milliseconds."
+    )
+    records_seen: Mapped[int] = mapped_column(
+        Integer, default=0, comment="Rows visible to this stage (e.g. unparsed pages)."
+    )
+    records_processed: Mapped[int] = mapped_column(
+        Integer, default=0, comment="Rows fully processed without error."
+    )
+    records_skipped: Mapped[int] = mapped_column(
+        Integer, default=0, comment="Rows skipped (duplicates, empty, already done)."
+    )
+    records_failed: Mapped[int] = mapped_column(
+        Integer, default=0, comment="Rows that caused an error during this stage."
+    )
+    records_inserted: Mapped[int] = mapped_column(
+        Integer, default=0, comment="New rows written to domain tables."
+    )
+    error_count: Mapped[int] = mapped_column(
+        Integer, default=0, comment="Total exception count in this stage."
+    )
+    step_metadata: Mapped[Optional[dict]] = mapped_column(
+        JSONB, comment="Arbitrary extra context: batch_limit, enable_llm, etc."
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    pipeline_run: Mapped[Optional["PipelineRun"]] = relationship(
+        "PipelineRun", back_populates="steps"
+    )
+
 
 # ---------------------------------------------------------------------------
 # GROUP A - Raw Data Storage
@@ -381,6 +460,11 @@ class ReviewSource(Base, TimestampMixin):
         comment="0-1 score representing source data quality / trustworthiness."
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    region: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Geographic region: EU, TN, US, Global")
+    keywords: Mapped[Optional[list]] = mapped_column(ARRAY(Text), nullable=True, comment="Search keywords for this source")
+    last_scraped_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    total_records_scraped: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, comment="Soft-delete timestamp")
 
     car_reviews: Mapped[List["CarReview"]] = relationship(
         "CarReview", back_populates="source", lazy="selectin"
@@ -409,7 +493,13 @@ class CarBrand(Base, TimestampMixin, SoftDeleteMixin):
     country_of_origin: Mapped[Optional[str]] = mapped_column(String(100))
     founded_year: Mapped[Optional[int]] = mapped_column(SmallInteger)
     logo_url: Mapped[Optional[str]] = mapped_column(Text)
+    region: Mapped[Optional[str]] = mapped_column(String(20), comment="Geographic region code, e.g. TN, EU, Global")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # ML clustering results
+    cluster_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="KMeans cluster assignment")
+    cluster_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Human-readable cluster label")
+    erp_module: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Recommended TEAMWILL ERP module")
 
     # Phase 4: selectin for high-volume child
     models: Mapped[List["CarModel"]] = relationship(
@@ -442,6 +532,17 @@ class CarModel(Base, TimestampMixin, SoftDeleteMixin):
     segment: Mapped[Optional[str]] = mapped_column(String(50))
     body_type: Mapped[Optional[str]] = mapped_column(String(50))
     engine_type: Mapped[Optional[str]] = mapped_column(String(50))
+    # Phase 8: rich vehicle specification fields
+    trim_level: Mapped[Optional[str]] = mapped_column(String(100), comment="e.g. 'SE', 'Sport', 'Long Range'")
+    transmission: Mapped[Optional[str]] = mapped_column(String(50), comment="e.g. 'Automatic', 'Manual', 'CVT'")
+    drivetrain: Mapped[Optional[str]] = mapped_column(String(50), comment="e.g. 'FWD', 'RWD', 'AWD', '4WD'")
+    horsepower_hp: Mapped[Optional[int]] = mapped_column(SmallInteger, comment="Peak power in horsepower")
+    torque_nm: Mapped[Optional[int]] = mapped_column(SmallInteger, comment="Peak torque in Newton-metres")
+    battery_kwh: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), comment="Usable battery capacity (EVs only)")
+    range_km: Mapped[Optional[int]] = mapped_column(SmallInteger, comment="WLTP/EPA range in km (EVs only)")
+    doors: Mapped[Optional[int]] = mapped_column(SmallInteger, comment="Number of doors")
+    seats: Mapped[Optional[int]] = mapped_column(SmallInteger, comment="Seating capacity")
+    msrp_eur: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), comment="Manufacturer suggested retail price in EUR")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     brand: Mapped["CarBrand"] = relationship("CarBrand", back_populates="models")
@@ -503,6 +604,14 @@ class CarListing(Base, TimestampMixin):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Phase 8: richer listing detail
+    fuel_type: Mapped[Optional[str]] = mapped_column(String(50), comment="e.g. 'Petrol', 'Diesel', 'Electric', 'Hybrid'")
+    transmission: Mapped[Optional[str]] = mapped_column(String(50), comment="e.g. 'Automatic', 'Manual'")
+    color: Mapped[Optional[str]] = mapped_column(String(50))
+    trim_level: Mapped[Optional[str]] = mapped_column(String(100))
+    listing_year: Mapped[Optional[int]] = mapped_column(SmallInteger, comment="Model year of the listed vehicle")
+    # Provenance: seeded | scraped | imported
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
 
     model: Mapped["CarModel"] = relationship("CarModel", back_populates="listings")
 
@@ -579,7 +688,13 @@ class InsuranceCompany(Base, TimestampMixin, SoftDeleteMixin):
     country: Mapped[Optional[str]] = mapped_column(String(100))
     website: Mapped[Optional[str]] = mapped_column(Text)
     founded_year: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    region: Mapped[Optional[str]] = mapped_column(String(20), comment="Geographic region code, e.g. TN, EU, Global")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # ML clustering results
+    cluster_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="KMeans cluster assignment")
+    cluster_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Human-readable cluster label")
+    erp_module: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Recommended TEAMWILL ERP module")
 
     policies: Mapped[List["InsurancePolicy"]] = relationship(
         "InsurancePolicy", back_populates="company",
@@ -738,6 +853,8 @@ class CompetitorPricing(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Provenance: seeded | scraped | imported
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
 
     company: Mapped["InsuranceCompany"] = relationship(
         "InsuranceCompany", back_populates="competitor_pricings"
@@ -822,11 +939,17 @@ class CarReview(Base, TimestampMixin):
         String(64), unique=True,
         comment="SHA-256 deduplication hash - duplicate rows are rejected on insert."
     )
+    # Phase 8: editorial detail
+    pros: Mapped[Optional[str]] = mapped_column(Text, comment="Comma-separated list of positive highlights")
+    cons: Mapped[Optional[str]] = mapped_column(Text, comment="Comma-separated list of drawbacks")
+    variant_tested: Mapped[Optional[str]] = mapped_column(String(200), comment="Specific trim/variant reviewed, e.g. 'XLE V6 AWD'")
     is_processed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Phase 3: NOT NULL partition key
     scraped_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Provenance: seeded | scraped | imported
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
 
     model: Mapped["CarModel"] = relationship("CarModel", back_populates="reviews")
     source: Mapped[Optional["ReviewSource"]] = relationship(
@@ -880,6 +1003,8 @@ class InsuranceReview(Base, TimestampMixin):
     scraped_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Provenance: seeded | scraped | imported
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
 
     company: Mapped["InsuranceCompany"] = relationship(
         "InsuranceCompany", back_populates="reviews"
@@ -1183,6 +1308,9 @@ class MarketTrendArticle(Base, TimestampMixin):
     publication_date: Mapped[Optional[date]] = mapped_column(Date)
     body_text: Mapped[Optional[str]] = mapped_column(Text)
     tags: Mapped[Optional[list]] = mapped_column(ARRAY(Text))
+    # Phase 8: content classification
+    category: Mapped[Optional[str]] = mapped_column(String(60), comment="e.g. 'EV', 'Market', 'Sales', 'Technology', 'Regulation'")
+    region: Mapped[Optional[str]] = mapped_column(String(100), comment="Geographic focus of the article")
     content_hash: Mapped[Optional[str]] = mapped_column(
         String(64), unique=True,
         comment="SHA-256 deduplication hash."
@@ -1194,6 +1322,8 @@ class MarketTrendArticle(Base, TimestampMixin):
     scraped_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Provenance: seeded | scraped | imported
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
 
     source: Mapped[Optional["ReviewSource"]] = relationship(
         "ReviewSource", back_populates="market_trend_articles"
@@ -1255,6 +1385,52 @@ class KpiMetric(Base):
 
 
 
+class OpportunitySignal(Base, TimestampMixin):
+    """
+    Sales opportunity score per entity (InsuranceCompany or CarBrand).
+
+    A high overall_score (0–100) means the entity shows public signs of needing
+    better software — complaints, dropping satisfaction, low review visibility —
+    making it a strong TEAMWILL sales target.
+
+    Computed by ``analytics.opportunity_scorer.compute_opportunity_signals()``.
+    """
+    __tablename__ = "opportunity_signals"
+    __table_args__ = (
+        UniqueConstraint("entity_type", "entity_id", name="uq_oppsig_entity"),
+        CheckConstraint("overall_score BETWEEN 0 AND 100", name="chk_oppsig_overall"),
+        CheckConstraint("complaint_score BETWEEN 0 AND 100", name="chk_oppsig_complaint"),
+        CheckConstraint("sentiment_drop_score BETWEEN 0 AND 100", name="chk_oppsig_sentiment"),
+        CheckConstraint("review_volume_score BETWEEN 0 AND 100", name="chk_oppsig_volume"),
+        Index("idx_oppsig_type_score", "entity_type", "overall_score"),
+        Index("idx_oppsig_region", "region"),
+        Index("idx_oppsig_strength", "signal_strength"),
+        {"comment": "Opportunity scores for TEAMWILL sales targeting — higher = more likely to need ERP."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    entity_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    entity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    entity_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    region: Mapped[Optional[str]] = mapped_column(String(20))
+
+    overall_score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+    complaint_score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+    sentiment_drop_score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+    review_volume_score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+
+    top_complaint_types: Mapped[Optional[list]] = mapped_column(ARRAY(String))
+    score_reasoning: Mapped[Optional[dict]] = mapped_column(JSONB)
+    signal_strength: Mapped[str] = mapped_column(String(20), nullable=False)
+    sector_percentile: Mapped[Optional[int]] = mapped_column(
+        SmallInteger,
+        comment="Distress percentile within sector (0-100). 100 = most distressed.",
+    )
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class BrandReputationScore(Base):
     """
     Monthly aggregated reputation score per car brand.
@@ -1265,11 +1441,12 @@ class BrandReputationScore(Base):
     """
     __tablename__ = "brand_reputation_scores"
     __table_args__ = (
-        UniqueConstraint("brand_id", "period_date", name="uq_brs_brand_period"),
+        UniqueConstraint("brand_id", "period_date", "data_origin", name="uq_brs_brand_period_origin"),
         CheckConstraint("review_count >= 0", name="chk_brs_review_count"),
         Index("idx_brs_brand", "brand_id"),
         Index("idx_brs_period", "period_date"),
         Index("idx_brs_brand_period", "brand_id", "period_date"),
+        Index("idx_brs_origin", "data_origin"),
         {"comment": "Monthly brand reputation scores — upserted on each analytics run."},
     )
 
@@ -1297,6 +1474,10 @@ class BrandReputationScore(Base):
         Integer, nullable=False, default=0,
         comment="Total number of reviews included in this aggregation.",
     )
+    data_origin: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="all", server_default="all",
+        comment="Provenance filter: all | seeded | scraped",
+    )
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False,
         comment="Timestamp of the analytics run that produced this row.",
@@ -1312,13 +1493,14 @@ class SentimentTrend(Base):
     """
     __tablename__ = "sentiment_trends"
     __table_args__ = (
-        UniqueConstraint("brand_id", "period_date", name="uq_st_brand_period"),
+        UniqueConstraint("brand_id", "period_date", "data_origin", name="uq_st_brand_period_origin"),
         CheckConstraint("positive_count >= 0", name="chk_st_positive"),
         CheckConstraint("neutral_count  >= 0", name="chk_st_neutral"),
         CheckConstraint("negative_count >= 0", name="chk_st_negative"),
         Index("idx_st_brand", "brand_id"),
         Index("idx_st_period", "period_date"),
         Index("idx_st_brand_period", "brand_id", "period_date"),
+        Index("idx_st_origin", "data_origin"),
         {"comment": "Monthly sentiment distribution per brand — upserted on each analytics run."},
     )
 
@@ -1338,8 +1520,104 @@ class SentimentTrend(Base):
         Numeric(6, 4),
         comment="Mean NLP sentiment score (−1.0 to 1.0) for this brand/period.",
     )
+    data_origin: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="all", server_default="all",
+        comment="Provenance filter: all | seeded | scraped",
+    )
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GROUP H — Keyword Monitoring
+# ---------------------------------------------------------------------------
+
+class SearchKeyword(Base, TimestampMixin):
+    """User-defined keywords for automated article discovery via RSS search."""
+    __tablename__ = "search_keywords"
+    __table_args__ = (
+        Index("idx_sk_active", "is_active", postgresql_where=text("is_active = TRUE")),
+        {"comment": "Keywords monitored for automated article discovery."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    keyword: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    region: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_searched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    results_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+
+# ---------------------------------------------------------------------------
+# ERP Vendor Intelligence
+# ---------------------------------------------------------------------------
+
+class ErpVendor(Base, TimestampMixin):
+    """ERP vendors active in insurance/automotive markets — TEAMWILL's competitive landscape."""
+    __tablename__ = "erp_vendors"
+    __table_args__ = (
+        Index("idx_erp_vendor_sector", "target_sector"),
+        Index("idx_erp_vendor_region", "target_region"),
+        {"comment": "ERP vendor competitive intelligence for TEAMWILL market positioning."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    product_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    target_sector: Mapped[str] = mapped_column(String(50), nullable=False, comment="insurance, automotive, both")
+    target_region: Mapped[str] = mapped_column(String(50), nullable=False, comment="TN, EU, MENA, global")
+    website: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'seeded'"))
+
+
+# ---------------------------------------------------------------------------
+# ML Clustering
+# ---------------------------------------------------------------------------
+
+class MlModelMetric(Base):
+    """Quality metrics and evaluation parameters for tracked ML Models (KMeans)."""
+    __tablename__ = "ml_model_metrics"
+    __table_args__ = (
+        Index("idx_mlmm_model", "model_name"),
+        {"comment": "Stores analytical metrics like Silhouette score, Davies-Bouldin, and bootstrap stability per ML model run."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    model_name: Mapped[str] = mapped_column(String(100), nullable=False, default="kmeans_clustering")
+    silhouette_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 4), nullable=True)
+    davies_bouldin_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 4), nullable=True)
+    inertia: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)
+    k_value: Mapped[int] = mapped_column(Integer, nullable=False)
+    n_companies: Mapped[int] = mapped_column(Integer, nullable=False)
+    cluster_stability_json: Mapped[Optional[dict]] = mapped_column(
+        JSONB, comment="Bootstrap stability percentages per company { company_id: stability_pct }."
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class MlClusterMetadata(Base):
+    """Metadata for each KMeans cluster — labels, colors, stats."""
+    __tablename__ = "ml_cluster_metadata"
+    __table_args__ = (
+        Index("idx_mlcm_cluster", "cluster_id"),
+        {"comment": "One row per KMeans cluster with label, ERP module, and summary stats."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    cluster_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    cluster_label: Mapped[str] = mapped_column(String(100), nullable=False)
+    erp_module: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    avg_negative_pct: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
+    avg_review_count: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    company_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    color_hex: Mapped[str] = mapped_column(String(7), nullable=False, default="#888888")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 
@@ -1368,4 +1646,12 @@ __all__ = [
     "MarketTrendArticle",
     # Analytics
     "KpiMetric", "BrandReputationScore", "SentimentTrend",
+    # Opportunity Scoring
+    "OpportunitySignal",
+    # Keyword Monitoring
+    "SearchKeyword",
+    # ML Evaluation
+    "MlModelMetric",
+    # ML Clustering
+    "MlClusterMetadata",
 ]

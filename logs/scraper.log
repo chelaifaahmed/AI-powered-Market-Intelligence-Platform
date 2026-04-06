@@ -1519,3 +1519,171 @@
 2026-03-16T02:48:03 | INFO     | scrapers.caranddriver | Fetching URL 1/1: https://www.caranddriver.com/toyota/camry
 2026-03-16T02:48:19 | INFO     | scrapers.caranddriver | Fetched https://www.caranddriver.com/toyota/camry — status=200, size=2090429 chars
 2026-03-16T02:48:20 | INFO     | scrapers.caranddriver | Playwright run complete — 1 page(s) fetched, 2090678 bytes
+2026-03-26T14:33:19 | INFO     | scrapers.keyword_scraper | Searching keyword: 'Tunisia insurance market' (region=TN)
+2026-03-26T14:33:20 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=Tunisia+insurance+market&hl=fr — 9630 bytes
+2026-03-26T14:33:20 | INFO     | scrapers.keyword_scraper |   Google News: 7 items for 'Tunisia insurance market'
+2026-03-26T14:33:22 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=Tunisia+insurance+market&format=rss — 1276 bytes
+2026-03-26T14:33:22 | INFO     | scrapers.keyword_scraper |   Bing News: 0 items for 'Tunisia insurance market'
+2026-03-26T14:33:23 | INFO     | scrapers.keyword_scraper |   Keyword 'Tunisia insurance market': found=7, inserted=7
+2026-03-26T14:33:25 | INFO     | scrapers.keyword_scraper | Keyword search complete: {'keywords_searched': 1, 'articles_found': 7, 'articles_inserted': 7, 'articles_duplicate': 0}
+2026-04-03T19:01:28 | INFO     | scrapers.keyword_scraper | Searching keyword: 'Tunisia insurance market' (region=TN)
+2026-04-03T19:01:30 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=Tunisia+insurance+market&hl=fr — 15737 bytes
+2026-04-03T19:01:30 | INFO     | scrapers.keyword_scraper |   Google News: 11 items for 'Tunisia insurance market'
+2026-04-03T19:01:32 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=Tunisia+insurance+market&format=rss — 1276 bytes
+2026-04-03T19:01:32 | INFO     | scrapers.keyword_scraper |   Bing News: 0 items for 'Tunisia insurance market'
+2026-04-03T19:01:33 | INFO     | scrapers.keyword_scraper |   Keyword 'Tunisia insurance market': found=11, inserted=7
+2026-04-03T19:01:35 | INFO     | scrapers.keyword_scraper | Searching keyword: 'assurance tunisie digitalisation' (region=TN)
+2026-04-03T19:01:36 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=assurance+tunisie+digitalisation&hl=fr — 49946 bytes
+2026-04-03T19:01:36 | INFO     | scrapers.keyword_scraper |   Google News: 35 items for 'assurance tunisie digitalisation'
+2026-04-03T19:01:37 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=assurance+tunisie+digitalisation&format=rss — 4432 bytes
+2026-04-03T19:01:37 | INFO     | scrapers.keyword_scraper |   Bing News: 4 items for 'assurance tunisie digitalisation'
+2026-04-03T19:01:38 | INFO     | scrapers.keyword_scraper |   Keyword 'assurance tunisie digitalisation': found=39, inserted=15
+2026-04-03T19:01:40 | INFO     | scrapers.keyword_scraper | Searching keyword: 'insurance ERP implementation' (region=Global)
+2026-04-03T19:01:42 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=insurance+ERP+implementation&hl=en — 69645 bytes
+2026-04-03T19:01:42 | INFO     | scrapers.keyword_scraper |   Google News: 55 items for 'insurance ERP implementation'
+2026-04-03T19:01:43 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=insurance+ERP+implementation&format=rss — 4086 bytes
+2026-04-03T19:01:43 | INFO     | scrapers.keyword_scraper |   Bing News: 4 items for 'insurance ERP implementation'
+2026-04-03T19:01:44 | INFO     | scrapers.keyword_scraper |   Keyword 'insurance ERP implementation': found=59, inserted=15
+2026-04-03T19:01:46 | INFO     | scrapers.keyword_scraper | Searching keyword: 'SAP insurance Africa' (region=Global)
+2026-04-03T19:01:48 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=SAP+insurance+Africa&hl=en — 84996 bytes
+2026-04-03T19:01:48 | INFO     | scrapers.keyword_scraper |   Google News: 65 items for 'SAP insurance Africa'
+2026-04-03T19:01:50 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=SAP+insurance+Africa&format=rss — 2612 bytes
+2026-04-03T19:01:50 | INFO     | scrapers.keyword_scraper |   Bing News: 2 items for 'SAP insurance Africa'
+2026-04-03T19:01:51 | INFO     | scrapers.keyword_scraper |   Keyword 'SAP insurance Africa': found=67, inserted=15
+2026-04-03T19:01:53 | INFO     | scrapers.keyword_scraper | Searching keyword: 'Odoo assurance tunisie' (region=TN)
+2026-04-03T19:01:53 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=Odoo+assurance+tunisie&hl=fr — 1157 bytes
+2026-04-03T19:01:53 | INFO     | scrapers.keyword_scraper |   Google News: 0 items for 'Odoo assurance tunisie'
+2026-04-03T19:01:55 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=Odoo+assurance+tunisie&format=rss — 1266 bytes
+2026-04-03T19:01:55 | INFO     | scrapers.keyword_scraper |   Bing News: 0 items for 'Odoo assurance tunisie'
+2026-04-03T19:01:56 | INFO     | scrapers.keyword_scraper |   Keyword 'Odoo assurance tunisie': found=0, inserted=0
+2026-04-03T19:01:58 | INFO     | scrapers.keyword_scraper | Searching keyword: 'Oracle insurance MENA' (region=Global)
+2026-04-03T19:01:59 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=Oracle+insurance+MENA&hl=en — 10074 bytes
+2026-04-03T19:01:59 | INFO     | scrapers.keyword_scraper |   Google News: 6 items for 'Oracle insurance MENA'
+2026-04-03T19:02:01 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=Oracle+insurance+MENA&format=rss — 1261 bytes
+2026-04-03T19:02:01 | INFO     | scrapers.keyword_scraper |   Bing News: 0 items for 'Oracle insurance MENA'
+2026-04-03T19:02:02 | INFO     | scrapers.keyword_scraper |   Keyword 'Oracle insurance MENA': found=6, inserted=6
+2026-04-03T19:02:04 | INFO     | scrapers.keyword_scraper | Searching keyword: 'leasing ERP Tunisia' (region=TN)
+2026-04-03T19:02:05 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=leasing+ERP+Tunisia&hl=fr — 1151 bytes
+2026-04-03T19:02:05 | INFO     | scrapers.keyword_scraper |   Google News: 0 items for 'leasing ERP Tunisia'
+2026-04-03T19:02:06 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=leasing+ERP+Tunisia&format=rss — 1251 bytes
+2026-04-03T19:02:06 | INFO     | scrapers.keyword_scraper |   Bing News: 0 items for 'leasing ERP Tunisia'
+2026-04-03T19:02:07 | INFO     | scrapers.keyword_scraper |   Keyword 'leasing ERP Tunisia': found=0, inserted=0
+2026-04-03T19:02:09 | INFO     | scrapers.keyword_scraper | Searching keyword: 'digital transformation insurance Tunisia' (region=TN)
+2026-04-03T19:02:10 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=digital+transformation+insurance+Tunisia&hl=fr — 1193 bytes
+2026-04-03T19:02:10 | INFO     | scrapers.keyword_scraper |   Google News: 0 items for 'digital transformation insurance Tunisia'
+2026-04-03T19:02:12 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=digital+transformation+insurance+Tunisia&format=rss — 4912 bytes
+2026-04-03T19:02:12 | INFO     | scrapers.keyword_scraper |   Bing News: 5 items for 'digital transformation insurance Tunisia'
+2026-04-03T19:02:13 | INFO     | scrapers.keyword_scraper |   Keyword 'digital transformation insurance Tunisia': found=5, inserted=5
+2026-04-03T19:02:15 | INFO     | scrapers.keyword_scraper | Searching keyword: 'core insurance system replacement' (region=Global)
+2026-04-03T19:02:16 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=core+insurance+system+replacement&hl=en — 55475 bytes
+2026-04-03T19:02:16 | INFO     | scrapers.keyword_scraper |   Google News: 43 items for 'core insurance system replacement'
+2026-04-03T19:02:17 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=core+insurance+system+replacement&format=rss — 2932 bytes
+2026-04-03T19:02:17 | INFO     | scrapers.keyword_scraper |   Bing News: 2 items for 'core insurance system replacement'
+2026-04-03T19:02:19 | INFO     | scrapers.keyword_scraper |   Keyword 'core insurance system replacement': found=45, inserted=15
+2026-04-03T19:02:21 | INFO     | scrapers.keyword_scraper | Searching keyword: 'insurance software Tunisia' (region=TN)
+2026-04-03T19:02:21 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=insurance+software+Tunisia&hl=fr — 1165 bytes
+2026-04-03T19:02:21 | INFO     | scrapers.keyword_scraper |   Google News: 0 items for 'insurance software Tunisia'
+2026-04-03T19:02:23 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=insurance+software+Tunisia&format=rss — 1987 bytes
+2026-04-03T19:02:23 | INFO     | scrapers.keyword_scraper |   Bing News: 1 items for 'insurance software Tunisia'
+2026-04-03T19:02:24 | INFO     | scrapers.keyword_scraper |   Keyword 'insurance software Tunisia': found=1, inserted=1
+2026-04-03T19:02:26 | INFO     | scrapers.keyword_scraper | Searching keyword: 'ERP automobile tunisie' (region=TN)
+2026-04-03T19:02:27 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=ERP+automobile+tunisie&hl=fr — 5086 bytes
+2026-04-03T19:02:27 | INFO     | scrapers.keyword_scraper |   Google News: 3 items for 'ERP automobile tunisie'
+2026-04-03T19:02:29 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=ERP+automobile+tunisie&format=rss — 4366 bytes
+2026-04-03T19:02:29 | INFO     | scrapers.keyword_scraper |   Bing News: 4 items for 'ERP automobile tunisie'
+2026-04-03T19:02:30 | INFO     | scrapers.keyword_scraper |   Keyword 'ERP automobile tunisie': found=7, inserted=7
+2026-04-03T19:02:32 | INFO     | scrapers.keyword_scraper | Searching keyword: 'concessionnaire automobile digitalisation' (region=TN)
+2026-04-03T19:02:33 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=concessionnaire+automobile+digitalisation&hl=fr — 70110 bytes
+2026-04-03T19:02:33 | INFO     | scrapers.keyword_scraper |   Google News: 51 items for 'concessionnaire automobile digitalisation'
+2026-04-03T19:02:35 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=concessionnaire+automobile+digitalisation&format=rss — 8148 bytes
+2026-04-03T19:02:35 | INFO     | scrapers.keyword_scraper |   Bing News: 9 items for 'concessionnaire automobile digitalisation'
+2026-04-03T19:02:36 | INFO     | scrapers.keyword_scraper |   Keyword 'concessionnaire automobile digitalisation': found=60, inserted=15
+2026-04-03T19:02:38 | INFO     | scrapers.keyword_scraper | Searching keyword: 'fleet management software Tunisia' (region=TN)
+2026-04-03T19:02:39 | INFO     | scrapers.keyword_scraper | Fetched https://news.google.com/rss/search?q=fleet+management+software+Tunisia&hl=fr — 1179 bytes
+2026-04-03T19:02:39 | INFO     | scrapers.keyword_scraper |   Google News: 0 items for 'fleet management software Tunisia'
+2026-04-03T19:02:41 | INFO     | scrapers.keyword_scraper | Fetched https://www.bing.com/news/search?q=fleet+management+software+Tunisia&format=rss — 4557 bytes
+2026-04-03T19:02:41 | INFO     | scrapers.keyword_scraper |   Bing News: 5 items for 'fleet management software Tunisia'
+2026-04-03T19:02:42 | INFO     | scrapers.keyword_scraper |   Keyword 'fleet management software Tunisia': found=5, inserted=5
+2026-04-03T19:02:44 | INFO     | scrapers.keyword_scraper | Keyword search complete: {'keywords_searched': 13, 'articles_found': 305, 'articles_inserted': 106, 'articles_duplicate': 4}
+2026-04-06T13:58:50 | INFO     | scrapers.google_maps | google_maps_signals table ensured.
+2026-04-06T13:58:50 | INFO     | scrapers.google_maps | Scraping: STAR → 'star assurances tunisie avis'
+2026-04-06T13:58:51 | INFO     | scrapers.google_maps |   STAR: N/A (0 reviews)
+2026-04-06T13:58:51 | INFO     | scrapers.google_maps |   Waiting 6.1s ...
+2026-04-06T13:58:57 | INFO     | scrapers.google_maps | SKIP Star Assurances (duplicate)
+2026-04-06T13:58:57 | INFO     | scrapers.google_maps | Scraping: Carte (GAT) → 'gat assurances tunisie avis'
+2026-04-06T13:58:58 | INFO     | scrapers.google_maps |   Carte (GAT): N/A (0 reviews)
+2026-04-06T13:58:58 | INFO     | scrapers.google_maps |   Waiting 5.6s ...
+2026-04-06T13:59:03 | INFO     | scrapers.google_maps | Scraping: Maghrebia → 'maghrebia assurances tunisie avis'
+2026-04-06T13:59:04 | INFO     | scrapers.google_maps |   Maghrebia: N/A (0 reviews)
+2026-04-06T13:59:04 | INFO     | scrapers.google_maps |   Waiting 7.9s ...
+2026-04-06T13:59:12 | INFO     | scrapers.google_maps | Scraping: Lloyd Tunisien → 'lloyd tunisien assurances avis'
+2026-04-06T13:59:13 | INFO     | scrapers.google_maps |   Lloyd Tunisien: N/A (0 reviews)
+2026-04-06T13:59:13 | INFO     | scrapers.google_maps |   Waiting 8.0s ...
+2026-04-06T13:59:21 | INFO     | scrapers.google_maps | Scraping: BIAT Assurances → 'biat assurances tunisie avis'
+2026-04-06T13:59:22 | INFO     | scrapers.google_maps |   BIAT Assurances: N/A (0 reviews)
+2026-04-06T13:59:22 | INFO     | scrapers.google_maps |   Waiting 7.4s ...
+2026-04-06T13:59:29 | INFO     | scrapers.google_maps | Scraping: Assurances SALIM → 'assurances salim tunisie avis'
+2026-04-06T13:59:30 | INFO     | scrapers.google_maps |   Assurances SALIM: N/A (0 reviews)
+2026-04-06T13:59:30 | INFO     | scrapers.google_maps |   Waiting 5.1s ...
+2026-04-06T13:59:35 | INFO     | scrapers.google_maps | Scraping: Giat Assurances → 'giat assurances tunisie avis'
+2026-04-06T13:59:35 | INFO     | scrapers.google_maps |   Giat Assurances: N/A (0 reviews)
+2026-04-06T13:59:35 | INFO     | scrapers.google_maps |   Waiting 9.4s ...
+2026-04-06T13:59:45 | INFO     | scrapers.google_maps | Scraping: COMAR Assurances → 'comar assurances tunisie avis'
+2026-04-06T13:59:45 | INFO     | scrapers.google_maps |   COMAR Assurances: N/A (0 reviews)
+2026-04-06T13:59:45 | INFO     | scrapers.google_maps |   Waiting 6.9s ...
+2026-04-06T13:59:52 | INFO     | scrapers.google_maps | Scraping: BH Assurance → 'bh assurance tunisie avis'
+2026-04-06T13:59:52 | INFO     | scrapers.google_maps |   BH Assurance: N/A (0 reviews)
+2026-04-06T13:59:52 | INFO     | scrapers.google_maps |   Waiting 7.9s ...
+2026-04-06T14:00:00 | INFO     | scrapers.google_maps | Scraping: ASTREE Assurances → 'astree assurances tunisie avis'
+2026-04-06T14:00:01 | INFO     | scrapers.google_maps |   ASTREE Assurances: N/A (0 reviews)
+2026-04-06T14:00:01 | INFO     | scrapers.google_maps |   Waiting 6.4s ...
+2026-04-06T14:00:07 | INFO     | scrapers.google_maps | Scraping: AMI Assurances → 'ami assurances tunisie avis'
+2026-04-06T14:00:07 | INFO     | scrapers.google_maps |   AMI Assurances: N/A (0 reviews)
+2026-04-06T14:00:07 | INFO     | scrapers.google_maps |   Waiting 9.1s ...
+2026-04-06T14:00:17 | INFO     | scrapers.google_maps | Scraping: Ennakl (Volkswagen/Audi TN) → 'ennakl automobiles tunisie avis'
+2026-04-06T14:00:17 | INFO     | scrapers.google_maps |   Ennakl (Volkswagen/Audi TN): N/A (0 reviews)
+2026-04-06T14:00:17 | INFO     | scrapers.google_maps |   Waiting 8.3s ...
+2026-04-06T14:00:25 | INFO     | scrapers.google_maps | Scraping: Artes (Renault TN) → 'artes renault tunisie avis'
+2026-04-06T14:00:26 | INFO     | scrapers.google_maps |   Artes (Renault TN): N/A (0 reviews)
+2026-04-06T14:00:26 | INFO     | scrapers.google_maps |   Waiting 7.9s ...
+2026-04-06T14:00:34 | INFO     | scrapers.google_maps | Scraping: STAFIM (Peugeot TN) → 'stafim peugeot tunisie avis'
+2026-04-06T14:00:35 | INFO     | scrapers.google_maps |   STAFIM (Peugeot TN): N/A (0 reviews)
+2026-04-06T14:00:35 | INFO     | scrapers.google_maps |   Waiting 7.3s ...
+2026-04-06T14:00:42 | INFO     | scrapers.google_maps | Scraping: AutoStar Tunisie → 'autostar bmw tunisie avis'
+2026-04-06T14:00:42 | INFO     | scrapers.google_maps |   AutoStar Tunisie: N/A (0 reviews)
+2026-04-06T14:00:42 | INFO     | scrapers.google_maps |   Waiting 6.2s ...
+2026-04-06T14:00:48 | INFO     | scrapers.google_maps | Scraping: ATL (Ford TN) → 'atl ford tunisie avis'
+2026-04-06T14:00:49 | INFO     | scrapers.google_maps |   ATL (Ford TN): N/A (0 reviews)
+2026-04-06T14:00:49 | INFO     | scrapers.google_maps |   Waiting 7.4s ...
+2026-04-06T14:00:56 | INFO     | scrapers.google_maps | Scraping: SATA (Toyota TN) → 'sata toyota tunisie avis'
+2026-04-06T14:00:57 | INFO     | scrapers.google_maps |   SATA (Toyota TN): N/A (0 reviews)
+2026-04-06T14:00:57 | INFO     | scrapers.google_maps |   Waiting 9.7s ...
+2026-04-06T14:01:06 | INFO     | scrapers.google_maps | Scraping: Sovac (General Motors TN) → 'sovac general motors tunisie avis'
+2026-04-06T14:01:07 | INFO     | scrapers.google_maps |   Sovac (General Motors TN): N/A (0 reviews)
+2026-04-06T14:01:07 | INFO     | scrapers.google_maps |   Waiting 8.0s ...
+2026-04-06T14:01:15 | INFO     | scrapers.google_maps | Scraping: Tractafric Motors → 'tractafric motors tunisie avis'
+2026-04-06T14:01:15 | INFO     | scrapers.google_maps |   Tractafric Motors: N/A (0 reviews)
+2026-04-06T14:01:15 | INFO     | scrapers.google_maps |   Waiting 6.8s ...
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps | ============================================================
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps | Google Maps Scraper - Results
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps | ============================================================
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   STAR: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   Carte (GAT): N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   Maghrebia: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   Lloyd Tunisien: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   BIAT Assurances: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   Assurances SALIM: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   Giat Assurances: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   COMAR Assurances: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   BH Assurance: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   ASTREE Assurances: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   AMI Assurances: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   Ennakl (Volkswagen/Audi TN): N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   Artes (Renault TN): N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   STAFIM (Peugeot TN): N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   AutoStar Tunisie: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   ATL (Ford TN): N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   SATA (Toyota TN): N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   Sovac (General Motors TN): N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps |   Tractafric Motors: N/A (0 reviews)
+2026-04-06T14:01:22 | INFO     | scrapers.google_maps | ============================================================

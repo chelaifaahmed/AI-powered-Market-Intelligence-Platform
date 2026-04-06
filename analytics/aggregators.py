@@ -61,11 +61,12 @@ def _upsert_reputation(
     avg_sentiment_score,
     review_count: int,
     now: datetime,
+    data_origin: str = "all",
 ) -> bool:
     """Insert or update one BrandReputationScore row.  Returns True if inserted."""
     existing = (
         session.query(BrandReputationScore)
-        .filter_by(brand_id=brand_id, period_date=period_date)
+        .filter_by(brand_id=brand_id, period_date=period_date, data_origin=data_origin)
         .first()
     )
     avg_r = float(avg_rating) if avg_rating is not None else None
@@ -85,6 +86,7 @@ def _upsert_reputation(
             avg_rating=avg_r,
             avg_sentiment_score=avg_s,
             review_count=review_count,
+            data_origin=data_origin,
             computed_at=now,
         )
     )
@@ -100,11 +102,12 @@ def _upsert_sentiment_trend(
     negative_count: int,
     avg_sentiment_score,
     now: datetime,
+    data_origin: str = "all",
 ) -> bool:
     """Insert or update one SentimentTrend row.  Returns True if inserted."""
     existing = (
         session.query(SentimentTrend)
-        .filter_by(brand_id=brand_id, period_date=period_date)
+        .filter_by(brand_id=brand_id, period_date=period_date, data_origin=data_origin)
         .first()
     )
     avg_s = float(avg_sentiment_score) if avg_sentiment_score is not None else None
@@ -125,6 +128,7 @@ def _upsert_sentiment_trend(
             neutral_count=neutral_count,
             negative_count=negative_count,
             avg_sentiment_score=avg_s,
+            data_origin=data_origin,
             computed_at=now,
         )
     )
@@ -135,48 +139,21 @@ def _upsert_sentiment_trend(
 # Public aggregation functions
 # ---------------------------------------------------------------------------
 
-def compute_brand_reputation(session: Session) -> Dict[str, Any]:
-    """Compute monthly brand reputation metrics and upsert into analytics tables.
-
-    Joins:
-        car_brands → car_models → car_reviews LEFT OUTER JOIN car_review_nlp
-
-    Groups by:
-        (brand_id, date_trunc('month', review_date))
-
-    Computes per group:
-        - avg_rating              — mean star rating (CarReview.rating)
-        - avg_sentiment_score     — mean NLP sentiment score (CarReviewNlp.sentiment_score)
-        - review_count            — total review rows
-        - positive/neutral/negative_count — NLP label breakdown
-
-    Upserts into:
-        - brand_reputation_scores  (unique per brand + month)
-        - sentiment_trends         (unique per brand + month)
+def _run_aggregation_query(session: Session, origin_filter: str | None = None):
+    """Run the aggregation query, optionally filtered by data_origin.
 
     Args:
-        session: Active SQLAlchemy Session (caller owns commit/rollback).
+        session: Active SQLAlchemy session.
+        origin_filter: If set, filter car_reviews to this data_origin value.
+                       If None, include all reviews (origin='all').
 
     Returns:
-        dict with keys:
-            brand_periods_found       — distinct (brand, month) groups found
-            reputation_inserted       — new BrandReputationScore rows created
-            reputation_updated        — existing BrandReputationScore rows updated
-            trend_inserted            — new SentimentTrend rows created
-            trend_updated             — existing SentimentTrend rows updated
+        List of aggregated rows.
     """
-    logger.info("Starting compute_brand_reputation aggregation …")
-    now = datetime.now(timezone.utc)
-
-    # ------------------------------------------------------------------
-    # Aggregate query: one row per (brand_id, calendar-month)
-    # date_trunc requires a timestamp; CarReview.review_date is DATE so
-    # we cast explicitly to avoid implicit-cast warnings on strict configs.
-    # ------------------------------------------------------------------
     review_ts = cast(CarReview.review_date, TIMESTAMP)
     period_expr = func.date_trunc("month", review_ts)
 
-    rows = (
+    q = (
         session.query(
             CarBrand.id.label("brand_id"),
             CarBrand.name.label("brand_name"),
@@ -198,57 +175,92 @@ def compute_brand_reputation(session: Session) -> Dict[str, Any]:
         .join(CarReview, CarModel.id == CarReview.model_id)
         .outerjoin(CarReviewNlp, CarReview.id == CarReviewNlp.review_id)
         .filter(CarReview.review_date.isnot(None))
-        .group_by(CarBrand.id, CarBrand.name, period_expr)
+    )
+
+    if origin_filter is not None:
+        q = q.filter(CarReview.data_origin == origin_filter)
+
+    return (
+        q.group_by(CarBrand.id, CarBrand.name, period_expr)
         .order_by(CarBrand.name, period_expr)
         .all()
     )
 
-    logger.info("Aggregation query returned %d (brand, month) group(s).", len(rows))
+
+def compute_brand_reputation(session: Session) -> Dict[str, Any]:
+    """Compute monthly brand reputation metrics, provenance-aware.
+
+    Runs the aggregation three times:
+      1. origin='all'     — all reviews combined (backward compat)
+      2. origin='scraped' — real/live reviews only
+      3. origin='seeded'  — seeded/synthetic reviews only
+
+    Each pass upserts rows with the corresponding ``data_origin`` tag
+    into ``brand_reputation_scores`` and ``sentiment_trends``.
+
+    Args:
+        session: Active SQLAlchemy Session (caller owns commit/rollback).
+
+    Returns:
+        dict with summary metrics.
+    """
+    logger.info("Starting provenance-aware compute_brand_reputation …")
+    now = datetime.now(timezone.utc)
 
     rep_inserted = rep_updated = trend_inserted = trend_updated = 0
+    total_groups = 0
 
-    for row in rows:
-        period_date = _to_period_date(row.period_month)
-
-        logger.debug(
-            "Processing brand='%s' period=%s reviews=%d",
-            row.brand_name, period_date, row.review_count,
+    # Compute for each provenance slice
+    for origin_filter, origin_label in [
+        (None, "all"),
+        ("scraped", "scraped"),
+        ("seeded", "seeded"),
+    ]:
+        rows = _run_aggregation_query(session, origin_filter)
+        logger.info(
+            "Aggregation [%s] returned %d (brand, month) group(s).",
+            origin_label, len(rows),
         )
+        total_groups += len(rows)
 
-        inserted = _upsert_reputation(
-            session=session,
-            brand_id=row.brand_id,
-            period_date=period_date,
-            avg_rating=row.avg_rating,
-            avg_sentiment_score=row.avg_sentiment_score,
-            review_count=int(row.review_count),
-            now=now,
-        )
-        if inserted:
-            rep_inserted += 1
-        else:
-            rep_updated += 1
+        for row in rows:
+            period_date = _to_period_date(row.period_month)
 
-        inserted = _upsert_sentiment_trend(
-            session=session,
-            brand_id=row.brand_id,
-            period_date=period_date,
-            positive_count=int(row.positive_count),
-            neutral_count=int(row.neutral_count),
-            negative_count=int(row.negative_count),
-            avg_sentiment_score=row.avg_sentiment_score,
-            now=now,
-        )
-        if inserted:
-            trend_inserted += 1
-        else:
-            trend_updated += 1
+            inserted = _upsert_reputation(
+                session=session,
+                brand_id=row.brand_id,
+                period_date=period_date,
+                avg_rating=row.avg_rating,
+                avg_sentiment_score=row.avg_sentiment_score,
+                review_count=int(row.review_count),
+                now=now,
+                data_origin=origin_label,
+            )
+            if inserted:
+                rep_inserted += 1
+            else:
+                rep_updated += 1
 
-        # Flush periodically to free memory on large datasets
-        session.flush()
+            inserted = _upsert_sentiment_trend(
+                session=session,
+                brand_id=row.brand_id,
+                period_date=period_date,
+                positive_count=int(row.positive_count),
+                neutral_count=int(row.neutral_count),
+                negative_count=int(row.negative_count),
+                avg_sentiment_score=row.avg_sentiment_score,
+                now=now,
+                data_origin=origin_label,
+            )
+            if inserted:
+                trend_inserted += 1
+            else:
+                trend_updated += 1
+
+            session.flush()
 
     metrics: Dict[str, Any] = {
-        "brand_periods_found": len(rows),
+        "brand_periods_found": total_groups,
         "reputation_inserted": rep_inserted,
         "reputation_updated": rep_updated,
         "trend_inserted": trend_inserted,

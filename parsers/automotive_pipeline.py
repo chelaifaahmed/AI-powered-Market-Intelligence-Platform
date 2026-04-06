@@ -314,15 +314,16 @@ class ParserPipeline:
             self.session.add(brand)
             self.session.flush()
 
+        current_year = datetime.now(timezone.utc).year
         model = (
             self.session.query(CarModel)
-            .filter_by(brand_id=brand.id, name=model_name, year=datetime.now().year)
+            .filter_by(brand_id=brand.id, name=model_name, year=current_year)
             .first()
         )
         if model:
             return model
 
-        model = CarModel(brand_id=brand.id, name=model_name, year=datetime.now().year)
+        model = CarModel(brand_id=brand.id, name=model_name, year=current_year)
         self.session.add(model)
         self.session.flush()
         return model
@@ -378,29 +379,8 @@ class ParserPipeline:
 
 
 class AutomotivePipeline(ParserPipeline):
-    """Backward-compatible alias to preserve existing imports."""
+    """Backward-compatible alias — delegates to ParserPipeline.process_page()."""
 
     def process_page(self, raw_html: str, source_url: str) -> Dict[str, Any]:
-        """
-        Processes a single raw page into structured automotive intelligence.
-        """
-        # 1. Clean HTML
-        clean_text, stripped_html = clean_html(raw_html)
-        if not clean_text:
-            return {"status": "error", "reason": "empty_text"}
-
-        # 2. Extract
-        dom_data = extract_from_dom(stripped_html, source_url)
-        schema_data = extract_from_schema(raw_html)
-        llm_data = extract_with_llm(clean_text)
-
-        # 3. Merge & Normalise
-        raw_merged = merge_extractions(schema_data, dom_data, llm_data)
-        normalised = normalise_results(raw_merged, source_url)
-
-        # 4. Validate
-        is_valid, reason = validate(normalised)
-        if not is_valid:
-            return {"status": "invalid", "reason": reason}
-
-        return {"status": "success", "data": normalised}
+        """Process a single raw page through the full parser pipeline."""
+        return super().process_page(raw_html, source_url)

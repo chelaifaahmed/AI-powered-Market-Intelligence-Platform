@@ -34,6 +34,7 @@ if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
 from database.connection import get_db_session
+from observability.step_recorder import StepRecorder, derive_step_status
 from parsers.automotive_pipeline import ParserPipeline
 
 # ---------------------------------------------------------------------------
@@ -62,10 +63,33 @@ def run_parser_pipeline(batch_limit: int = 500, enable_llm: bool = False) -> Non
     )
     started = datetime.now(timezone.utc)
 
+    metrics: dict = {}
     try:
         with get_db_session() as session:
             pipeline = ParserPipeline(session=session, enable_llm=enable_llm)
+
+            # process_batch() creates a PipelineRun and commits internally,
+            # so we use the imperative StepRecorder to record around it.
+            recorder = StepRecorder(
+                session, "parser",
+                batch_limit=batch_limit, enable_llm=enable_llm,
+            )
+            recorder.start()
             metrics = pipeline.process_batch(limit=batch_limit)
+            recorder.finish(
+                records_seen=metrics.get("pages_processed", 0),
+                records_processed=metrics.get("records_extracted", 0),
+                records_skipped=metrics.get("duplicates_detected", 0),
+                records_failed=metrics.get("records_rejected", 0),
+                records_inserted=metrics.get("records_extracted", 0),
+                error_count=metrics.get("records_rejected", 0),
+                status=derive_step_status(
+                    metrics.get("records_extracted", 0),
+                    metrics.get("records_rejected", 0),
+                    metrics.get("pages_processed", 0),
+                ),
+            )
+            session.commit()
 
     except Exception as exc:
         logger.exception("Parser pipeline run failed with an unhandled exception: %s", exc)

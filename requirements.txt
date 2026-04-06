@@ -1,9 +1,40 @@
+# Core
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+
+# Database
 sqlalchemy>=2.0
 psycopg2-binary>=2.9
+asyncpg>=0.29.0
 alembic>=1.13
+
+# Scraping
+requests>=2.31.0
 beautifulsoup4>=4.12
 trafilatura>=1.8
 lxml>=5.0
+playwright>=1.40.0
+feedparser>=6.0.0
+
+# NLP — transformer-based sentiment analysis (DistilBERT SST-2)
+transformers>=4.35.0
+torch>=2.0.0
+
+# Utilities
 python-dateutil>=2.9
+aiofiles>=23.0
+httpx>=0.26.0
+
+# Testing
+pytest>=7.4.0
+
+# PDF generation
+reportlab>=4.0
+
 # Optional — enables LLM fallback extraction; pipeline works without it
-google-generativeai>=0.5
+google-genai>=1.0
+google-generativeai>=0.8.0  # legacy; kept for backward compat
+
+# AI Analyst — Groq inference (LLaMA 3.3 70B)
+groq>=0.9.0
