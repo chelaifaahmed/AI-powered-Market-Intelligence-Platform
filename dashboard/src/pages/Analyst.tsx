@@ -11,42 +11,75 @@ import type { AnalystMessage } from "../api/client";
 const STYLE_ID = "analyst-styles";
 
 const CUSTOM_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap');
 
-@keyframes analyst-grid-move {
-  0% { background-position: 0 0; }
-  100% { background-position: 60px 60px; }
+@keyframes analyst-float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(1deg); }
 }
 
-@keyframes analyst-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes bubble-pop {
+  0% { opacity: 0; transform: scale(0.8) translateY(20px) rotateX(20deg); }
+  100% { opacity: 1; transform: scale(1) translateY(0) rotateX(0deg); }
 }
 
-@keyframes analyst-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+.analyst-page-bg {
+  background: #0f172a;
+  position: relative;
+}
+.analyst-page-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at top right, rgba(0, 255, 255, 0.05), transparent 40%),
+                    radial-gradient(circle at bottom left, rgba(255, 0, 127, 0.05), transparent 40%);
+  z-index: 0;
+  pointer-events: none;
 }
 
-.analyst-hero-grid {
-  background-image:
-    linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
-  background-size: 60px 60px;
-  animation: analyst-grid-move 20s linear infinite;
+.glass-panel {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+}
+
+.glass-panel-3d {
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255,255,255,0.2);
+  border-left: 1px solid rgba(255,255,255,0.2);
+  box-shadow: 5px 5px 15px rgba(0,0,0,0.5), inset -2px -2px 10px rgba(0,0,0,0.3);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.glass-panel-3d:hover {
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: 10px 10px 20px rgba(0,0,0,0.6), inset -2px -2px 10px rgba(0,0,0,0.3);
+  border-color: #00FFFF;
+}
+
+.msg-ai {
+  background: linear-gradient(135deg, rgba(255,0,127,0.15), rgba(0,255,255,0.1));
+  border: 1px solid rgba(255,0,127,0.3);
+  border-radius: 20px 20px 20px 4px;
+}
+.msg-user {
+  background: linear-gradient(135deg, rgba(198,249,31,0.2), rgba(0,0,0,0.4));
+  border: 1px solid rgba(198,249,31,0.4);
+  border-radius: 20px 20px 4px 20px;
 }
 
 .analyst-msg-enter {
-  animation: analyst-fade-in 400ms ease-out both;
+  animation: bubble-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
 }
 
-.analyst-typing-dot {
-  animation: analyst-pulse 1.2s ease-in-out infinite;
+.glowing-text {
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.5), 0 0 20px rgba(255, 0, 127, 0.3);
 }
-.analyst-typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.analyst-typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
 .font-dm { font-family: 'DM Sans', sans-serif; }
+.font-syne { font-family: 'Syne', sans-serif; }
 `;
 
 function useInjectStyles() {
@@ -72,29 +105,26 @@ function renderMarkdown(text: string) {
   const elements: React.ReactNode[] = [];
 
   lines.forEach((line, i) => {
-    // Bold
     let processed: React.ReactNode = line;
     const boldParts = line.split(/\*\*(.*?)\*\*/g);
     if (boldParts.length > 1) {
       processed = boldParts.map((part, j) =>
-        j % 2 === 1 ? <strong key={j} className="font-semibold">{part}</strong> : part
+        j % 2 === 1 ? <strong key={j} className="text-[#00FFFF] font-bold" style={{ textShadow: "0 0 8px rgba(0,255,255,0.4)" }}>{part}</strong> : part
       );
     }
 
-    // Bullet points
     if (line.match(/^[\s]*[-*]\s/)) {
       elements.push(
-        <div key={i} className="flex gap-2 ml-2">
-          <span className="text-brand-400 mt-0.5">&#8226;</span>
-          <span>{processed}</span>
+        <div key={i} className="flex gap-3 ml-2 mt-2 items-start">
+          <div className="mt-1.5 h-2 w-2 rounded-full bg-[#FF007F] shadow-[0_0_8px_#FF007F] flex-shrink-0" />
+          <span className="text-white/90">{processed}</span>
         </div>
       );
     } else if (line.match(/^```/)) {
-      // skip code fences
     } else if (line.trim() === "") {
-      elements.push(<div key={i} className="h-2" />);
+      elements.push(<div key={i} className="h-3" />);
     } else {
-      elements.push(<p key={i}>{processed}</p>);
+      elements.push(<p key={i} className="mb-2 text-white/90 leading-relaxed font-dm">{processed}</p>);
     }
   });
 
@@ -183,158 +213,118 @@ export default function Analyst() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col -m-8" style={{ height: "calc(100vh - 73px)" }}>
-      {/* Dark hero header */}
-      <div className="relative overflow-hidden bg-[#0f172a] flex-shrink-0" style={{ minHeight: hasMessages ? 80 : 180 }}>
-        <div className="absolute inset-0 analyst-hero-grid" />
-        <div
-          className="relative z-10 px-8 py-6 flex items-center justify-between"
-          style={{ minHeight: hasMessages ? 80 : 180 }}
-        >
-          <div className={clsx("flex flex-col justify-center", !hasMessages && "items-center w-full text-center")}>
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-brand-500 shadow-lg shadow-violet-500/20">
-                <Sparkles className="h-4.5 w-4.5 text-white" strokeWidth={2} />
-              </div>
-              <h1 className="font-dm text-2xl font-light text-white tracking-tight">
-                AI Market Analyst
-              </h1>
+    <div className="flex flex-col -m-8 analyst-page-bg" style={{ height: "calc(100vh - 73px)" }}>
+      {/* Header */}
+      <div className="relative z-10 px-8 py-6 flex items-center justify-between border-b border-white/10 glass-panel flex-shrink-0" style={{ minHeight: hasMessages ? 80 : 140 }}>
+        <div className={clsx("flex flex-col justify-center", !hasMessages && "items-center w-full text-center mt-4")}>
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#FF007F] to-[#00FFFF] shadow-[0_0_20px_rgba(255,0,127,0.5)]" style={{ animation: "analyst-float 6s ease-in-out infinite" }}>
+              <Bot className="h-6 w-6 text-white" strokeWidth={2.5} />
             </div>
-            <p className="font-dm text-sm font-light text-slate-400 mt-2 max-w-lg">
-              {hasMessages
-                ? `${contextUsed.length} data sources active`
-                : "Ask questions about your market data. Powered by Claude AI with live database context."}
-            </p>
+            <h1 className="font-dm text-2xl font-medium text-white tracking-tight">
+              AI Market Analyst
+            </h1>
           </div>
-          {hasMessages && (
-            <button
-              onClick={resetChat}
-              className="flex items-center gap-2 rounded-lg border border-white/20 bg-transparent px-3 py-2 text-xs font-medium text-white hover:bg-white/10 transition-colors"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              New chat
-            </button>
-          )}
+          <p className="font-dm text-sm font-medium text-[#C6F91F] mt-3 tracking-widest bg-black/40 px-4 py-1.5 rounded-full border border-[#C6F91F]/30 backdrop-blur-md">
+            {hasMessages
+              ? `✨ ${contextUsed.length} ACTIVE STREAMS ✨`
+              : "READY TO CHAT. 3D INTEL UPLINK ESTABLISHED."}
+          </p>
         </div>
+        {hasMessages && (
+          <button
+            onClick={resetChat}
+            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 px-4 py-2 text-xs font-bold text-white uppercase tracking-wider backdrop-blur-md transition-all hover:scale-105"
+          >
+            <RotateCcw className="h-4 w-4 text-[#FF007F]" />
+            REBOOT
+          </button>
+        )}
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="flex-1 overflow-y-auto px-8 py-8 relative z-10 w-full" style={{ perspective: "1000px" }}>
         {!hasMessages && !loading ? (
-          /* Empty state — suggested prompts */
-          <div className="max-w-2xl mx-auto mt-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-4">
-              Try asking
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="max-w-4xl mx-auto mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {SUGGESTED_PROMPTS.map((prompt) => (
                 <button
                   key={prompt}
                   onClick={() => sendMessage(prompt)}
-                  className="text-left p-4 rounded-xl border border-slate-200/80 bg-white hover:border-brand-300 hover:shadow-md transition-all duration-150 group"
+                  className="text-left p-6 rounded-3xl glass-panel-3d relative group overflow-hidden"
                 >
-                  <p className="text-sm text-slate-700 group-hover:text-brand-600 transition-colors">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#FF007F] to-[#00FFFF] transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+                  <Sparkles className="h-5 w-5 text-[#C6F91F] mb-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  <p className="text-sm font-bold text-white font-dm leading-relaxed">
                     {prompt}
                   </p>
                 </button>
               ))}
             </div>
-
-            {/* Context badges */}
-            <div className="mt-8 flex flex-wrap gap-2 justify-center">
-              {["Brands", "Reviews", "Listings", "Opportunities", "Articles", "Pipeline"].map((s) => (
-                <span
-                  key={s}
-                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-[10px] font-medium text-slate-500 uppercase tracking-wide"
-                >
-                  {s}
-                </span>
-              ))}
-            </div>
-            <p className="text-center text-[11px] text-slate-400 mt-3">
-              Live data from all platform sources is included as context
-            </p>
           </div>
         ) : (
-          /* Message thread */
-          <div className="max-w-3xl mx-auto space-y-4">
+          <div className="max-w-4xl mx-auto space-y-8 pb-10">
             {messages.map((msg, i) => (
               <div
                 key={i}
                 className={clsx(
-                  "analyst-msg-enter flex gap-3",
-                  msg.role === "user" ? "justify-end" : "justify-start"
+                  "analyst-msg-enter flex gap-4 w-full",
+                  msg.role === "user" ? "flex-row-reverse" : "flex-row"
                 )}
               >
-                {msg.role === "assistant" && (
-                  <div className="flex-shrink-0 h-7 w-7 rounded-lg bg-gradient-to-br from-violet-500 to-brand-500 flex items-center justify-center mt-1">
-                    <Bot className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />
-                  </div>
-                )}
+                <div className={clsx(
+                  "flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-2xl shadow-[0_0_15px_rgba(0,0,0,0.5)]",
+                  msg.role === "assistant" ? "bg-gradient-to-tr from-[#FF007F] to-[#00FFFF]" : "bg-[#C6F91F]"
+                )}>
+                  {msg.role === "assistant" ? (
+                    <Bot className="h-5 w-5 text-white" strokeWidth={2.5} />
+                  ) : (
+                    <User className="h-5 w-5 text-black" strokeWidth={2.5} />
+                  )}
+                </div>
                 <div
                   className={clsx(
-                    "rounded-2xl px-4 py-3 max-w-[80%] text-sm leading-relaxed",
+                    "px-6 py-5 max-w-[80%] text-base backdrop-blur-xl shadow-2xl transition-all duration-300 hover:scale-[1.01]",
                     msg.role === "user"
-                      ? "bg-brand-500 text-white rounded-br-md"
-                      : "bg-white border border-slate-200/80 text-slate-700 rounded-bl-md shadow-sm"
+                      ? "msg-user text-[#C6F91F] font-semibold"
+                      : "msg-ai text-white"
                   )}
                 >
                   {msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}
                 </div>
-                {msg.role === "user" && (
-                  <div className="flex-shrink-0 h-7 w-7 rounded-lg bg-slate-200 flex items-center justify-center mt-1">
-                    <User className="h-3.5 w-3.5 text-slate-600" strokeWidth={2.5} />
-                  </div>
-                )}
               </div>
             ))}
 
-            {/* Typing indicator */}
             {loading && (
-              <div className="analyst-msg-enter flex gap-3">
-                <div className="flex-shrink-0 h-7 w-7 rounded-lg bg-gradient-to-br from-violet-500 to-brand-500 flex items-center justify-center mt-1">
-                  <Bot className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />
+              <div className="analyst-msg-enter flex gap-4">
+                <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-2xl bg-gradient-to-tr from-[#FF007F] to-[#00FFFF] shadow-[0_0_15px_rgba(0,0,0,0.5)]" style={{ animation: "analyst-float 3s infinite" }}>
+                  <Bot className="h-5 w-5 text-white" strokeWidth={2.5} />
                 </div>
-                <div className="bg-white border border-slate-200/80 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-2 w-2 rounded-full bg-slate-400 analyst-typing-dot" />
-                    <div className="h-2 w-2 rounded-full bg-slate-400 analyst-typing-dot" />
-                    <div className="h-2 w-2 rounded-full bg-slate-400 analyst-typing-dot" />
-                    <span className="ml-2 text-xs text-slate-400">Analyzing data...</span>
+                <div className="msg-ai px-6 py-5 backdrop-blur-xl flex items-center">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-5 w-5 text-[#00FFFF] animate-spin" />
+                    <span className="ml-2 text-sm font-bold uppercase tracking-wider text-[#FF007F]">Synthesis in progress...</span>
                   </div>
                 </div>
               </div>
             )}
-
-            {/* Error */}
-            {error && (
-              <div className="analyst-msg-enter flex gap-3">
-                <div className="flex-shrink-0 h-7 w-7 rounded-lg bg-red-100 flex items-center justify-center mt-1">
-                  <Bot className="h-3.5 w-3.5 text-red-500" strokeWidth={2.5} />
-                </div>
-                <div className="bg-red-50 border border-red-200 rounded-2xl rounded-bl-md px-4 py-3 text-sm text-red-700 max-w-[80%]">
-                  {error}
-                </div>
-              </div>
-            )}
-
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
       {/* Input bar */}
-      <div className="flex-shrink-0 border-t border-slate-200 bg-white px-8 py-4">
-        <div className="max-w-3xl mx-auto flex gap-3 items-end">
+      <div className="relative z-10 flex-shrink-0 glass-panel border-t-0 rounded-t-[40px] px-8 py-6 mx-4 mb-4 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]">
+        <div className="max-w-4xl mx-auto flex gap-4 items-end">
           <div className="flex-1 relative">
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about brands, reviews, opportunities, pricing..."
+              placeholder="Type your question..."
               rows={1}
-              className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-400/50 focus:border-brand-300 transition-colors"
+              className="w-full resize-none rounded-3xl border border-white/20 bg-black/40 px-6 py-4 pr-16 text-base font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#00FFFF] focus:bg-black/60 shadow-inner transition-all backdrop-blur-lg"
               style={{ maxHeight: 120 }}
               onInput={(e) => {
                 const el = e.currentTarget;
@@ -347,22 +337,19 @@ export default function Analyst() {
             onClick={() => sendMessage()}
             disabled={!input.trim() || loading}
             className={clsx(
-              "flex-shrink-0 h-11 w-11 rounded-xl flex items-center justify-center transition-all duration-150",
+              "flex-shrink-0 h-14 w-14 rounded-2xl flex items-center justify-center transition-all duration-300",
               input.trim() && !loading
-                ? "bg-brand-500 text-white hover:bg-brand-600 shadow-md shadow-brand-500/20"
-                : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                ? "bg-gradient-to-r from-[#FF007F] to-[#00FFFF] text-white shadow-[0_0_20px_rgba(255,0,127,0.6)] hover:scale-110 hover:-rotate-12"
+                : "bg-white/5 text-white/20 cursor-not-allowed border border-white/10"
             )}
           >
             {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-6 w-6 animate-spin" />
             ) : (
-              <Send className="h-4 w-4" strokeWidth={2.5} />
+              <Send className="h-6 w-6" strokeWidth={2.5} />
             )}
           </button>
         </div>
-        <p className="text-center text-[10px] text-slate-400 mt-2 max-w-3xl mx-auto">
-          AI analyst reads live database context. Responses may not be 100% accurate.
-        </p>
       </div>
     </div>
   );

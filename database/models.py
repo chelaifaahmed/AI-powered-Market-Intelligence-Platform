@@ -950,6 +950,11 @@ class CarReview(Base, TimestampMixin):
     )
     # Provenance: seeded | scraped | imported
     data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
+    # RAG: BGE-base-en-v1.5 embedding stored as JSONB float array (768-dim, L2-normalised)
+    embedding: Mapped[Optional[list]] = mapped_column(
+        JSONB, nullable=True,
+        comment="BAAI/bge-base-en-v1.5 embedding for RAG retrieval (768-dim list, L2-normalised)."
+    )
 
     model: Mapped["CarModel"] = relationship("CarModel", back_populates="reviews")
     source: Mapped[Optional["ReviewSource"]] = relationship(
@@ -1005,6 +1010,11 @@ class InsuranceReview(Base, TimestampMixin):
     )
     # Provenance: seeded | scraped | imported
     data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
+    # RAG: BGE-base-en-v1.5 embedding stored as JSONB float array (768-dim, L2-normalised)
+    embedding: Mapped[Optional[list]] = mapped_column(
+        JSONB, nullable=True,
+        comment="BAAI/bge-base-en-v1.5 embedding for RAG retrieval (768-dim list, L2-normalised)."
+    )
 
     company: Mapped["InsuranceCompany"] = relationship(
         "InsuranceCompany", back_populates="reviews"
@@ -1324,6 +1334,11 @@ class MarketTrendArticle(Base, TimestampMixin):
     )
     # Provenance: seeded | scraped | imported
     data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
+    # RAG: BGE-base-en-v1.5 embedding stored as JSONB float array (768-dim, L2-normalised)
+    embedding: Mapped[Optional[list]] = mapped_column(
+        JSONB, nullable=True,
+        comment="BAAI/bge-base-en-v1.5 embedding for RAG retrieval (768-dim list, L2-normalised)."
+    )
 
     source: Mapped[Optional["ReviewSource"]] = relationship(
         "ReviewSource", back_populates="market_trend_articles"

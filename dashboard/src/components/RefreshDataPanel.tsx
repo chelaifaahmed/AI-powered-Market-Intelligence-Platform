@@ -109,9 +109,9 @@ export default function RefreshDataPanel({ variant = "compact" }: RefreshDataPan
     mutationFn: (scraper: ScraperType) => api.triggerPipeline(scraper),
   });
 
-  const stopPolling = useCallback((scraper: string) => {
+  const stopListening = useCallback((scraper: string) => {
     if (pollTimers.current[scraper]) {
-      clearInterval(pollTimers.current[scraper]);
+      (pollTimers.current[scraper] as unknown as EventSource).close();
       delete pollTimers.current[scraper];
     }
   }, []);
@@ -119,42 +119,55 @@ export default function RefreshDataPanel({ variant = "compact" }: RefreshDataPan
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      Object.values(pollTimers.current).forEach(clearInterval);
+      Object.values(pollTimers.current).forEach((es) =>
+        (es as unknown as EventSource).close()
+      );
     };
   }, []);
 
-  const pollStatus = useCallback(
+  const subscribeToEvents = useCallback(
     (runId: string, scraper: ScraperType) => {
-      const timer = setInterval(async () => {
-        try {
-          const st: PipelineRunStatus = await api.pipelineRunStatus(runId);
-          const status = st.status as RunState["status"];
+      const es = new EventSource(`/api/pipeline/events/${runId}`);
+      // Reuse the same ref shape so no other code needs changing
+      pollTimers.current[scraper] = es as unknown as ReturnType<typeof setInterval>;
 
-          setRuns((prev) => ({
-            ...prev,
-            [scraper]: {
-              runId,
-              status,
-              scraper,
-              duration: st.duration_seconds,
-              records: st.records_scraped + st.records_stored,
-              error: st.error_message,
-            },
-          }));
+      es.onmessage = (event: MessageEvent) => {
+        const st: PipelineRunStatus = JSON.parse(event.data as string);
+        const status = st.status as RunState["status"];
 
-          if (status !== "running") {
-            stopPolling(scraper);
-            // Invalidate all queries to refresh page data
-            queryClient.invalidateQueries();
-          }
-        } catch {
-          // Ignore poll errors
+        setRuns((prev) => ({
+          ...prev,
+          [scraper]: {
+            runId,
+            status,
+            scraper,
+            duration: st.duration_seconds,
+            records: st.records_scraped + st.records_stored,
+            error: st.error_message,
+          },
+        }));
+
+        if (status !== "running") {
+          stopListening(scraper);
+          queryClient.invalidateQueries();
         }
-      }, 3000);
+      };
 
-      pollTimers.current[scraper] = timer;
+      es.onerror = () => {
+        stopListening(scraper);
+        setRuns((prev) => {
+          const current = prev[scraper];
+          if (current?.status === "running") {
+            return {
+              ...prev,
+              [scraper]: { ...current, status: "failed", error: "SSE connection lost" },
+            };
+          }
+          return prev;
+        });
+      };
     },
-    [queryClient, stopPolling]
+    [queryClient, stopListening]
   );
 
   const handleTrigger = useCallback(
@@ -179,7 +192,7 @@ export default function RefreshDataPanel({ variant = "compact" }: RefreshDataPan
           [scraper]: { ...prev[scraper], runId: res.run_id },
         }));
 
-        pollStatus(res.run_id, scraper);
+        subscribeToEvents(res.run_id, scraper);
       } catch (err) {
         setRuns((prev) => ({
           ...prev,
@@ -194,7 +207,7 @@ export default function RefreshDataPanel({ variant = "compact" }: RefreshDataPan
         }));
       }
     },
-    [triggerMut, pollStatus]
+    [triggerMut, subscribeToEvents]
   );
 
   const anyRunning = Object.values(runs).some((r) => r.status === "running");

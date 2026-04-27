@@ -136,6 +136,8 @@ export interface Listing {
   listing_year: number | null;
   scraped_at: string;
   data_origin: string;
+  brand_name: string | null;
+  model_name: string | null;
 }
 
 export interface Article {
@@ -576,7 +578,7 @@ export const api = {
   listings: (p?: { limit?: number; offset?: number; brand?: string; origin?: string }) =>
     get<PagedResponse<Listing>>("/api/listings", p),
 
-  articles: (p?: { limit?: number; offset?: number; category?: string; region?: string; origin?: string }) =>
+  articles: (p?: { limit?: number; offset?: number; category?: string; categories?: string; region?: string; search?: string; origin?: string; relevant_only?: boolean }) =>
     get<PagedResponse<Article>>("/api/articles", p),
   articleCategories: () => get<ArticleCategory[]>("/api/articles/categories"),
 

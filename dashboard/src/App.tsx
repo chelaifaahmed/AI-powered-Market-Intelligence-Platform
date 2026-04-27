@@ -13,6 +13,7 @@ import Sources from "./pages/Sources";
 import InsuranceLandscape from "./pages/InsuranceLandscape";
 import MLDashboard from "./pages/MLDashboard";
 import CompanyRadar from "./pages/CompanyRadar";
+import FieldIntel from "./pages/FieldIntel";
 import Admin from "./pages/Admin";
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<WeeklyBrief />} />
           <Route path="company" element={<CompanyRadar />} />
+          <Route path="field-intel" element={<FieldIntel />} />
           <Route path="market" element={<Overview />} />
           <Route path="analyst" element={<Analyst />} />
           <Route path="admin" element={<Admin />} />

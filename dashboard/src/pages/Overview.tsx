@@ -20,6 +20,7 @@ export default function Overview() {
   const { data: summary, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["dashboard-summary"],
     queryFn: api.dashboardSummary,
+    staleTime: 0,
   });
 
   const { data: brands } = useQuery<BrandSummary[]>({

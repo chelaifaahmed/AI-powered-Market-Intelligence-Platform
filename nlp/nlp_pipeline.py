@@ -28,17 +28,20 @@ from nlp.topic_classifier import classify_topics
 
 logger = logging.getLogger("nlp.pipeline")
 
-_MODEL_VERSION_RULE = "rule-nlp-v1"
+_MODEL_VERSION_RULE        = "rule-nlp-v1"
 _MODEL_VERSION_TRANSFORMER = "distilbert-sst2-v1"
+_MODEL_VERSION_FINETUNED   = "sentiment-automotive-v1"
 
-# Resolve actual version at import time so every NlpPipeline instance uses the
-# correct label without having to call _get_pipeline() manually.
 def _resolve_model_version() -> str:
-    """Return the version string for whichever NLP backend will be used."""
+    """Return the version string matching whichever sentiment tier is active."""
     try:
-        from nlp.sentiment_analyzer import _get_pipeline
-        pipe = _get_pipeline()
-        return _MODEL_VERSION_TRANSFORMER if pipe is not None else _MODEL_VERSION_RULE
+        from nlp.sentiment_analyzer import active_model_tier
+        tier = active_model_tier()
+        if "sentiment-automotive-v1" in tier:
+            return _MODEL_VERSION_FINETUNED
+        if "SST-2" in tier:
+            return _MODEL_VERSION_TRANSFORMER
+        return _MODEL_VERSION_RULE
     except Exception:
         return _MODEL_VERSION_RULE
 
@@ -63,7 +66,10 @@ class NlpPipeline:
 
         rows = (
             self.session.query(CarReview)
-            .filter(~exists().where(CarReviewNlp.review_id == CarReview.id))
+            .filter(~exists().where(
+                (CarReviewNlp.review_id == CarReview.id) &
+                (CarReviewNlp.model_version == self.model_version)
+            ))
             .order_by(CarReview.scraped_at.asc())
             .limit(limit)
             .all()
@@ -121,7 +127,10 @@ class NlpPipeline:
 
         rows = (
             self.session.query(InsuranceReview)
-            .filter(~exists().where(InsuranceReviewNlp.review_id == InsuranceReview.id))
+            .filter(~exists().where(
+                (InsuranceReviewNlp.review_id == InsuranceReview.id) &
+                (InsuranceReviewNlp.model_version == self.model_version)
+            ))
             .order_by(InsuranceReview.scraped_at.asc())
             .limit(limit)
             .all()
@@ -179,7 +188,10 @@ class NlpPipeline:
 
         rows = (
             self.session.query(MarketTrendArticle)
-            .filter(~exists().where(ArticleNlpResult.article_id == MarketTrendArticle.id))
+            .filter(~exists().where(
+                (ArticleNlpResult.article_id == MarketTrendArticle.id) &
+                (ArticleNlpResult.model_version == self.model_version)
+            ))
             .order_by(MarketTrendArticle.scraped_at.asc())
             .limit(limit)
             .all()

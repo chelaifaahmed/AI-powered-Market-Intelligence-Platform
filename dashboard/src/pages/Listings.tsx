@@ -97,7 +97,7 @@ export default function Listings() {
         <KpiCard
           label="Avg Listed Price"
           value={avgPrice != null ? `€${Math.round(avgPrice).toLocaleString()}` : "—"}
-          sub="All listings"
+          sub="EUR listings only"
           icon={DollarSign}
           iconColor="text-emerald-500"
           loading={isLoading}

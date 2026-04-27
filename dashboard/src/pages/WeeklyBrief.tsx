@@ -12,6 +12,27 @@ const STYLES = `
   @keyframes wb-card-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes wb-float { 0% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-10px) rotate(2deg); } 100% { transform: translateY(0px) rotate(0deg); } }
   
+  @keyframes wb-fade-in-scale {
+    0% { opacity: 0; transform: scale(0.95) translateY(15px); filter: blur(8px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0px); }
+  }
+  @keyframes wb-gradient-move {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  @keyframes pulse-glow {
+    0% { box-shadow: 6px 6px 0px #4F46E5, 0 0 20px rgba(79, 70, 229, 0.3); border-color: #4F46E5; }
+    50% { box-shadow: 8px 8px 0px #FF007F, 0 0 40px rgba(255, 0, 127, 0.6); border-color: #FF007F; }
+    100% { box-shadow: 6px 6px 0px #4F46E5, 0 0 20px rgba(79, 70, 229, 0.3); border-color: #4F46E5; }
+  }
+  @keyframes pulse-dot {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 0, 127, 0.9); }
+    70% { transform: scale(1.2); box-shadow: 0 0 0 12px rgba(255, 0, 127, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 0, 127, 0); }
+  }
+  .wb-slide-active { animation: wb-fade-in-scale 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  
   .wb-container {
     padding: 32px 40px; 
     min-height: 100vh;
@@ -53,31 +74,61 @@ const STYLES = `
   }
 
   .wb-hook {
-    background: linear-gradient(135deg, rgba(15, 20, 35, 0.7), rgba(20, 25, 60, 0.7));
+    background: linear-gradient(135deg, rgba(15, 20, 35, 0.8), rgba(25, 20, 50, 0.9));
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border: 3px solid #4F46E5;
-    border-radius: 32px;
+    border-radius: 28px;
     padding: 40px;
     margin: 40px 0;
     box-shadow: 6px 6px 0px #4F46E5;
     position: relative;
     overflow: hidden;
-    transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    animation: pulse-glow 5s infinite ease-in-out;
   }
   .wb-hook:hover {
-    box-shadow: 8px 8px 0px #4F46E5, 0 0 30px rgba(79, 70, 229, 0.3);
-    transform: translate(-1px, -2px) scale(1.005);
+    transform: translate(-2px, -3px) scale(1.01);
   }
-  
+
   .wb-hook::after {
-    content: "READ ME";
+    content: "CRITICAL INTEL";
     position: absolute;
-    top: -15px; right: 20px;
-    background: #C6F91F; color: #000;
-    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px;
-    padding: 4px 12px; border-radius: 20px; border: 2px solid #000;
-    transform: rotate(15deg);
+    top: 25px; right: -35px;
+    background: #FF007F; color: #FFF;
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 13px;
+    padding: 8px 40px; border: 2px solid #FFF;
+    transform: rotate(45deg);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    letter-spacing: 2px;
+    z-index: 10;
+  }
+
+  .wb-hook-header {
+    font-family: 'Syne', sans-serif; 
+    font-weight: 900; 
+    font-size: 26px;
+    margin: 0; 
+    letter-spacing: 1px;
+    background: linear-gradient(90deg, #C6F91F, #00FFFF, #C6F91F);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    animation: wb-gradient-move 3s linear infinite;
+  }
+
+  .wb-live-dot {
+    width: 14px;
+    height: 14px;
+    background-color: #FF007F;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse-dot 2s infinite;
+    box-shadow: 0 0 10px #FF007F;
   }
 
   .wb-btn { 
@@ -102,28 +153,45 @@ const STYLES = `
   .wb-badge-analyst { background: #2e1065; color: #c4b5fd; border: 1px dashed #c4b5fd; }
   .wb-badge-verified { background: #052e16; color: #86efac; border: 1px solid #86efac; }
 
+  @keyframes highlight-swoosh {
+    0% { clip-path: polygon(0 0, 0 0, 0 100%, 0% 100%); }
+    100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+  }
+
   .wb-highlight {
     position: relative;
     display: inline-block;
-    color: #000;
+    color: #FFF;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
     font-weight: 800;
-    padding: 0 6px;
-    margin: 0 2px;
+    padding: 0 4px;
+    margin: 0;
     z-index: 1;
+    transition: color 0.3s ease;
   }
   .wb-highlight::before {
     content: "";
     position: absolute;
     z-index: -1;
-    left: -4px;
-    right: -8px;
-    top: 0px;
-    bottom: -2px;
+    top: 60%;
+    bottom: 0;
+    left: 0; right: 0;
     background: #C6F91F;
-    border-radius: 255px 25px 225px 25px/25px 225px 25px 255px;
-    transform: rotate(-1.5deg);
-    opacity: 0.95;
-    box-shadow: -1px 2px 0px rgba(0,0,0,0.2);
+    border-radius: 2px;
+    transform: skewX(-4deg);
+    box-shadow: none;
+    animation: highlight-swoosh 0.5s ease-out forwards;
+    animation-delay: 0.3s; 
+    clip-path: polygon(0 0, 0 0, 0 100%, 0% 100%);
+    transition: all 0.3s ease;
+  }
+  .wb-highlight:hover {
+    color: #FFF;
+  }
+  .wb-highlight:hover::before {
+    background: #FF007F;
+    transform: skewX(0deg) scale(1.05);
+    box-shadow: 4px 4px 0px rgba(0,0,0,0.4);
   }
   .wb-highlight span {
     position: relative;
@@ -206,6 +274,7 @@ interface DashboardSummary {
   total_insurance_reviews: number;
   total_articles: number;
   total_brands: number;
+  total_insurance_companies: number;
 }
 
 interface Article {
@@ -272,7 +341,7 @@ function timeAgo(dateStr: string): string {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 function HighlightMarker({ text }: { text: string }) {
-  const regex = /(\b(?:surge|spike|plummet|critical|urgent|opportunity|risk|decline|growth|strong|moderate|weak|negative|positive|detect|detected|complaints?|issues?|signals?|active|sentiment|trends?)\b|\b\d+(?:\.\d+)?%?\b)/gi;
+  const regex = /(\b(?:priority target|surging|plummeting|priority|critical|urgent|declining|improving|negative|positive)\b|\b\d+(?:\.\d+)?%?\b)/gi;
   const parts = text.split(regex);
   return (
     <>
@@ -293,7 +362,8 @@ function HighlightMarker({ text }: { text: string }) {
 export default function WeeklyBrief() {
   const navigate = useNavigate();
   const [showAll, setShowAll] = useState(false);
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [slideVisible, setSlideVisible] = useState(true);
 
   useEffect(() => {
     const id = "wb-styles-genz";
@@ -303,19 +373,6 @@ export default function WeeklyBrief() {
       el.textContent = STYLES;
       document.head.appendChild(el);
     }
-  }, []);
-
-  useEffect(() => {
-    fetch(`${API}/api/analyst/summarize`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "opportunity", context: "" }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { summary?: string } | null) => {
-        if (d?.summary) setAiSummary(d.summary);
-      })
-      .catch(() => undefined);
   }, []);
 
   const { data: opportunities, isLoading, isError } = useQuery<Opportunity[]>({
@@ -331,9 +388,9 @@ export default function WeeklyBrief() {
   });
 
   const { data: dashSummary } = useQuery<DashboardSummary>({
-    queryKey: ["dashboard-summary"],
+    queryKey: ["dashboard-summary-brief"],
     queryFn: () => fetch(`${API}/api/dashboard/summary`).then((r) => r.json()),
-    staleTime: 30000,
+    staleTime: 0,
   });
 
   const { data: articles } = useQuery<ArticlesResponse>({
@@ -345,6 +402,38 @@ export default function WeeklyBrief() {
   const totalSignals = (oppSummary?.strong_signals ?? 0) + (oppSummary?.moderate_signals ?? 0);
   const top5 = opportunities?.slice(0, 5) ?? [];
   const rest = opportunities?.slice(5) ?? [];
+
+  // Build 2 live slides from real data
+  const slides: string[] = [];
+  if (opportunities?.[0]) {
+    const o = opportunities[0];
+    const neg = o.score_reasoning?.complaint_intensity?.negative_pct ?? 0;
+    const dir = fmtTrend(o.score_reasoning?.trend?.direction ?? "stable");
+    const issue = o.top_complaint_types?.[0] ?? "operational issues";
+    slides.push(
+      `${o.entity_name} is the #1 priority target — ${o.overall_score.toFixed(0)}/100 score, ${neg.toFixed(0)}% negative sentiment, ${dir}. Key issue: ${issue}.`
+    );
+  }
+  if (opportunities?.[1]) {
+    const o = opportunities[1];
+    const neg = o.score_reasoning?.complaint_intensity?.negative_pct ?? 0;
+    const issue = o.top_complaint_types?.[0] ?? "operational issues";
+    slides.push(
+      `${o.entity_name} is surging as a #2 signal — ${o.overall_score.toFixed(0)}/100 with ${neg.toFixed(0)}% negative sentiment flagged. Top complaint: ${issue}.`
+    );
+  }
+
+  useEffect(() => {
+    if (slides.length < 2) return;
+    const interval = setInterval(() => {
+      setSlideVisible(false);
+      setTimeout(() => {
+        setSlideIndex((i) => (i + 1) % slides.length);
+        setSlideVisible(true);
+      }, 420);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [slides.length]);
 
   return (
     <div className="wb-container">
@@ -372,10 +461,11 @@ export default function WeeklyBrief() {
           
           {totalSignals > 0 && (
             <div style={{
-              background: "#FF007F", color: "#FFF",
-              padding: "10px 20px", borderRadius: "8px", border: "2px solid #FFF",
-              fontSize: 14, fontWeight: 800, fontFamily: "'Syne', sans-serif",
-              boxShadow: "4px 4px 0px #FFF", transform: "rotate(2deg)"
+              background: "rgba(10, 15, 30, 0.7)", color: "#00FFFF",
+              padding: "10px 20px", borderRadius: "12px", border: "1px solid rgba(0, 255, 255, 0.4)",
+              fontSize: 13, fontWeight: 700, fontFamily: "'Syne', sans-serif",
+              backdropFilter: "blur(12px)", letterSpacing: "1px",
+              boxShadow: "0 4px 20px rgba(0, 255, 255, 0.15)"
             }}>
               ⚡ {totalSignals} SIGNALS ACTIVE
             </div>
@@ -384,25 +474,44 @@ export default function WeeklyBrief() {
 
         {/* ── Middle Hook Area (The Focus) ── */}
         <div className="wb-hook">
-          <h2 style={{ 
-            fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 24, 
-            color: "#C6F91F", margin: "0 0 16px 0", letterSpacing: "2px"
-          }}>
-             WHAT YOU NEED TO KNOW
-          </h2>
-          {aiSummary ? (
-            <p style={{ 
-              fontSize: 22, color: "#FFF", lineHeight: 1.6, margin: 0,
-              fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
-              textShadow: "0 2px 4px rgba(0,0,0,0.5)"
-            }}>
-              <HighlightMarker text={aiSummary} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, paddingBottom: 16, borderBottom: "1px dashed rgba(255,255,255,0.15)" }}>
+            <h2 className="wb-hook-header">
+              <span className="wb-live-dot" />
+              WHAT YOU NEED TO KNOW
+            </h2>
+            {/* Dot indicators */}
+            {slides.length > 1 && (
+              <div style={{ display: "flex", gap: 8 }}>
+                {slides.map((_, i) => (
+                  <div key={i} onClick={() => { setSlideVisible(false); setTimeout(() => { setSlideIndex(i); setSlideVisible(true); }, 420); }} style={{
+                    width: i === slideIndex ? 24 : 10, height: 10, borderRadius: 5,
+                    background: i === slideIndex ? "#FF007F" : "rgba(255,255,255,0.2)",
+                    transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)", cursor: "pointer",
+                    boxShadow: i === slideIndex ? "0 0 10px rgba(255,0,127,0.5)" : "none"
+                  }} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {slides.length > 0 ? (
+            <p
+              key={slideIndex}
+              className="wb-slide-active"
+              style={{
+                fontSize: 24, color: "#F9FAFB", lineHeight: 1.7, margin: 0,
+                fontFamily: "'Syne', sans-serif", fontWeight: 600,
+                textShadow: "0 2px 8px rgba(0,0,0,0.6)",
+                opacity: slideVisible ? 1 : 0,
+                transition: "opacity 0.4s ease",
+              }}
+            >
+              <HighlightMarker text={slides[slideIndex]} />
             </p>
           ) : (
-            <div style={{ padding: "20px 0" }}>
-              <div className="wb-skel" style={{ height: 20, marginBottom: 12, width: "100%", background: "rgba(198,249,31,0.2)" }} />
-              <div className="wb-skel" style={{ height: 20, marginBottom: 12, width: "95%", background: "rgba(198,249,31,0.2)" }} />
-              <div className="wb-skel" style={{ height: 20, width: "80%", background: "rgba(198,249,31,0.2)" }} />
+            <div style={{ padding: "12px 0" }}>
+              <div className="wb-skel" style={{ height: 24, marginBottom: 16, width: "100%", background: "rgba(198,249,31,0.15)", borderRadius: "6px" }} />
+              <div className="wb-skel" style={{ height: 24, width: "70%", background: "rgba(198,249,31,0.15)", borderRadius: "6px" }} />
             </div>
           )}
         </div>
@@ -571,7 +680,7 @@ function MarketSidebar({ opportunities, articles, dashSummary }: any) {
         <div className="wb-card" style={{ padding: 20, marginBottom: 0 }}>
           <div style={{ fontSize: 11, color: "#AAA", letterSpacing: "1px" }}>COMPANIES</div>
           <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 32, fontWeight: 800, color: "#C6F91F" }}>
-            {(dashSummary?.total_brands ?? 0) + 28}
+            {(dashSummary?.total_brands ?? 0) + (dashSummary?.total_insurance_companies ?? 0)}
           </div>
         </div>
         <div className="wb-card" style={{ padding: 20, marginBottom: 0 }}>

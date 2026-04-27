@@ -19,6 +19,10 @@ node_modules/
 
 # Build output
 dashboard/dist/
+dashboard/tsconfig.app.tsbuildinfo
+
+# Memory / internal logs
+memory/GIT_LOG.md
 
 # Logs
 logs/
@@ -38,8 +42,31 @@ Thumbs.db
 # Pyre
 .pyre/
 
+# Debris / scratch files (never commit)
+tmp_*.py
+test_*.py
+*_backup.json
+push_log.txt
+temp_push_log.txt
+alembic_err*
+=*
+SKILL*.md
+"SKILL (*.md)"
+team.png
+team2.png
+
+# Fine-tuning / ML artefacts (large — use Git LFS or store externally)
+data/
+models/
+
+# Generated exports
+exports/
+
 # Claude Code settings (local only)
 .claude/
 
 # Track memory folder
 !memory/
+
+# Explicitly track Reddit data backup (do NOT ignore this)
+!reddit_data_backup.json

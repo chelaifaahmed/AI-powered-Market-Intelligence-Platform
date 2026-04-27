@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Newspaper, ExternalLink, User, Calendar } from "lucide-react";
+import { Newspaper, ExternalLink, User, Calendar, Tag } from "lucide-react";
 import { api, type Article } from "../api/client";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
@@ -10,6 +10,8 @@ import { format, parseISO } from "date-fns";
 import clsx from "clsx";
 
 const PAGE_SIZE = 12;
+const CATEGORIES = ["All", "EV", "Insurance", "Market", "Technology", "Regulation", "Manufacturing"] as const;
+type CategoryFilter = typeof CATEGORIES[number];
 
 function fmtDate(d: string | null) {
   if (!d) return null;
@@ -30,17 +32,40 @@ function ArticleCard({ article }: { article: Article }) {
     }
   })();
 
+  const isReddit = article.source_url?.includes("reddit.com");
   const originLabel = article.data_origin === "scraped"
     ? <span className="badge text-[10px] bg-emerald-100 text-emerald-700 border-0">Live</span>
     : <span className="badge text-[10px] bg-slate-100 text-slate-500 border-0">Seeded</span>;
+
+  const CATEGORY_COLORS: Record<string, string> = {
+    EV: "bg-blue-100 text-blue-700",
+    Insurance: "bg-purple-100 text-purple-700",
+    Market: "bg-amber-100 text-amber-700",
+    Technology: "bg-cyan-100 text-cyan-700",
+    Regulation: "bg-red-100 text-red-700",
+    Manufacturing: "bg-orange-100 text-orange-700",
+  };
+  const catColor = article.category ? (CATEGORY_COLORS[article.category] ?? "bg-slate-100 text-slate-600") : null;
 
   return (
     <div className="card-hover p-5 flex flex-col gap-3 group">
       {/* Source */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <span className="badge badge-neutral text-[10px]">{domain}</span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {isReddit ? (
+            <span className="badge text-[10px] bg-orange-100 text-orange-700 border-0 flex items-center gap-0.5">
+              <svg className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 0a10 10 0 100 20A10 10 0 0010 0zm5.21 6.36a1.37 1.37 0 011.37 1.37 1.37 1.37 0 01-1.37 1.37 1.37 1.37 0 01-1.37-1.37 1.37 1.37 0 011.37-1.37zm-9.57 0a1.37 1.37 0 011.37 1.37 1.37 1.37 0 01-1.37 1.37 1.37 1.37 0 01-1.37-1.37 1.37 1.37 0 011.37-1.37zm4.78 8.5c-2.44 0-4.42-1.56-4.42-3.5h8.84c0 1.94-1.98 3.5-4.42 3.5zm-2.3-5.5a.9.9 0 01.9.9.9.9 0 01-.9.9.9.9 0 01-.9-.9.9.9 0 01.9-.9zm4.6 0a.9.9 0 01.9.9.9.9 0 01-.9.9.9.9 0 01-.9-.9.9.9 0 01.9-.9z"/></svg>
+              Reddit
+            </span>
+          ) : (
+            <span className="badge badge-neutral text-[10px]">{domain}</span>
+          )}
           {originLabel}
+          {article.category && catColor && (
+            <span className={`badge text-[10px] border-0 flex items-center gap-0.5 ${catColor}`}>
+              <Tag className="h-2.5 w-2.5" />{article.category}
+            </span>
+          )}
         </div>
         <span className="text-[10px] text-slate-400">
           {fmtDate(article.publication_date) ?? fmtDate(article.scraped_at)}
@@ -111,12 +136,14 @@ export default function Articles() {
   const [offset, setOffset] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [originFilter, setOriginFilter] = useState<OriginFilter>("scraped");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("All");
 
   const origin = originFilter === "all" ? undefined : originFilter;
+  const category = categoryFilter === "All" ? undefined : categoryFilter.toLowerCase();
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["articles", offset, origin],
-    queryFn: () => api.articles({ limit: PAGE_SIZE, offset, origin }),
+    queryKey: ["articles", offset, origin, category],
+    queryFn: () => api.articles({ limit: PAGE_SIZE, offset, origin, category }),
     placeholderData: (prev) => prev,
   });
 
@@ -182,6 +209,24 @@ export default function Articles() {
             {total.toLocaleString()} articles
           </span>
         )}
+      </div>
+
+      {/* Category filter */}
+      <div className="flex flex-wrap items-center gap-2">
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => { setCategoryFilter(cat); setOffset(0); }}
+            className={clsx(
+              "px-3 py-1 text-xs font-medium rounded-full border transition-colors",
+              categoryFilter === cat
+                ? "bg-brand-600 text-white border-brand-600 shadow-sm"
+                : "bg-white text-slate-500 border-slate-200 hover:border-brand-400 hover:text-brand-600"
+            )}
+          >
+            {cat}
+          </button>
+        ))}
       </div>
 
       {/* Content */}

@@ -5,15 +5,18 @@ import {
   TrendingUp,
   MessageSquare,
   Settings,
+  Telescope,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import AskAiDrawer from "./AskAiDrawer";
+import LiveIndicator from "./LiveIndicator";
 
 const API = import.meta.env.VITE_API_URL || "";
 
 const mainNav = [
   { to: "/", label: "Weekly Brief", icon: LayoutDashboard },
   { to: "/company", label: "Company Radar", icon: Building2 },
+  { to: "/field-intel", label: "Field Intel", icon: Telescope },
   { to: "/market", label: "Market Pulse", icon: TrendingUp },
   { to: "/analyst", label: "AI Analyst", icon: MessageSquare },
 ];
@@ -21,6 +24,7 @@ const mainNav = [
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   "/": { title: "Weekly Brief", subtitle: "Executive summary & key signals" },
   "/company": { title: "Company Radar", subtitle: "Track companies, clusters & ERP signals" },
+  "/field-intel": { title: "Field Intel", subtitle: "Market news & pricing data for your sales & prospection calls" },
   "/market": { title: "Market Pulse", subtitle: "Operational health & top-level intelligence signals" },
   "/analyst": { title: "AI Analyst", subtitle: "Chat with your data using Claude AI" },
   "/admin": { title: "Admin", subtitle: "Operations, sources & system management" },
@@ -67,12 +71,11 @@ export default function Layout() {
       >
         {/* Brand */}
         <div className="flex items-center" style={{ padding: "24px 20px 20px", gap: 10 }}>
-          <div
-            className="flex items-center justify-center flex-shrink-0"
-            style={{ width: 28, height: 28, backgroundColor: "#6366f1", borderRadius: 6 }}
-          >
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: 14, lineHeight: 1 }}>T</span>
-          </div>
+          <img 
+            src="/ui/team2.png" 
+            alt="Teamwill Logo" 
+            style={{ width: 42, height: 42, borderRadius: 8, objectFit: "cover" }} 
+          />
           <div>
             <div style={{ color: "#F9FAFB", fontWeight: 600, fontSize: 13, lineHeight: 1 }}>TEAMWILL</div>
             <div style={{ color: "#6B7280", fontWeight: 400, fontSize: 11, marginTop: 3 }}>Market Intelligence</div>
@@ -177,6 +180,7 @@ export default function Layout() {
               <p style={{ fontSize: 12, fontWeight: 400, color: "#6B7280", marginTop: 2 }}>{meta.subtitle}</p>
             </div>
             <div className="flex items-center" style={{ gap: 16 }}>
+              <LiveIndicator />
               <span
                 className="inline-flex items-center"
                 style={{
@@ -185,7 +189,7 @@ export default function Layout() {
                 }}
               >
                 <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#F59E0B", display: "inline-block" }} />
-                {signalCount != null ? `${signalCount} signals` : "Live"}
+                {signalCount != null ? `${signalCount} signals` : "—"}
               </span>
               <a
                 href="/docs"

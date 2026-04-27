@@ -482,3 +482,323 @@ def generate_opportunity_brief(session: Session) -> bytes:
     pdf_bytes = buf.read()
     logger.info("PDF brief generated: %d bytes, %d pages", len(pdf_bytes), doc.page)
     return pdf_bytes
+
+
+# ---------------------------------------------------------------------------
+# Company Radar — single-company PDF brief
+# ---------------------------------------------------------------------------
+
+def generate_company_brief(profile: Dict[str, Any]) -> bytes:
+    """
+    Generate a pre-call intelligence PDF for a single company (car or insurance).
+    profile: dict matching the CompanyProfile Pydantic schema from main.py.
+    """
+    styles = getSampleStyleSheet()
+
+    section_style = ParagraphStyle(
+        "CR_Section",
+        parent=styles["Heading2"],
+        fontSize=12,
+        textColor=INDIGO,
+        spaceAfter=6,
+        spaceBefore=14,
+        fontName="Helvetica-Bold",
+    )
+    body_style = ParagraphStyle(
+        "CR_Body",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=14,
+        textColor=SLATE_700,
+    )
+    small_style = ParagraphStyle(
+        "CR_Small",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=11,
+        textColor=SLATE_400,
+    )
+    label_style = ParagraphStyle(
+        "CR_Label",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=11,
+        textColor=SLATE_400,
+        fontName="Helvetica-Bold",
+    )
+
+    name = profile.get("name", "Unknown")
+    company_type = profile.get("type", "")
+    sector = profile.get("sector", "")
+    region = profile.get("region") or "—"
+    country = profile.get("country") or "—"
+    score = profile.get("score")
+    score_percentile = profile.get("score_percentile")
+    prospect_type = profile.get("prospect_type", "")
+    review_count = profile.get("review_count", 0)
+    negative_pct = profile.get("negative_pct", 0.0)
+    avg_rating = profile.get("avg_rating")
+    top_complaints: List[Dict] = profile.get("top_complaints") or []
+    sentiment_trend: List[Dict] = profile.get("sentiment_trend") or []
+    real_quotes: List[Dict] = profile.get("real_quotes") or []
+    scoring_breakdown: Optional[Dict] = profile.get("scoring_breakdown")
+    why_now = profile.get("why_now") or ""
+    erp_primary = profile.get("erp_module_primary") or "—"
+    erp_secondary = profile.get("erp_module_secondary") or "—"
+    data_note = profile.get("data_note") or ""
+
+    # Header/footer with company name subtitle
+    def _company_header_footer(canvas, doc):
+        canvas.saveState()
+        canvas.setFillColor(DARK_HEADER)
+        canvas.rect(0, PAGE_H - 45 * mm, PAGE_W, 45 * mm, fill=1, stroke=0)
+        canvas.setFillColor(WHITE)
+        canvas.setFont("Helvetica-Bold", 18)
+        canvas.drawString(LEFT_MARGIN, PAGE_H - 18 * mm, "TEAMWILL")
+        canvas.setFont("Helvetica", 13)
+        canvas.drawString(LEFT_MARGIN, PAGE_H - 27 * mm, f"Company Brief — {name}")
+        canvas.setFont("Helvetica", 9)
+        canvas.setFillColor(SLATE_400)
+        canvas.drawString(LEFT_MARGIN, PAGE_H - 34 * mm, f"{sector} · {region} · Pre-Call Intelligence Dossier")
+        now_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
+        canvas.setFont("Helvetica", 8)
+        canvas.setFillColor(SLATE_400)
+        canvas.drawRightString(PAGE_W - RIGHT_MARGIN, PAGE_H - 18 * mm, now_str)
+        canvas.drawRightString(PAGE_W - RIGHT_MARGIN, PAGE_H - 25 * mm, "TEAMWILL AI Platform")
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(SLATE_400)
+        canvas.drawString(LEFT_MARGIN, 12 * mm, "Confidential \u2014 TEAMWILL Internal Use Only")
+        canvas.drawRightString(PAGE_W - RIGHT_MARGIN, 12 * mm, f"Page {doc.page}")
+        canvas.restoreState()
+
+    story: list = []
+
+    # ── Section 1: Overview ──────────────────────────────────────────────────
+    story.append(Paragraph("Company Overview", section_style))
+
+    score_str = f"{round(score)}/100" if score is not None else "N/A"
+    percentile_str = f"Top {100 - round(score_percentile)}% in sector" if score_percentile is not None else ""
+    rating_str = f"{avg_rating:.1f}/5" if avg_rating is not None else "N/A"
+
+    overview_data = [
+        ["Sector", sector, "Type", company_type.capitalize()],
+        ["Region", region, "Country", country],
+        ["Opportunity Score", score_str, "Avg Rating", rating_str],
+        ["Prospect Category", prospect_type.replace("_", " ").title(), "Reviews", str(review_count)],
+    ]
+    if percentile_str:
+        overview_data.append(["Sector Percentile", percentile_str, "Negative %", f"{negative_pct:.1f}%"])
+    else:
+        overview_data.append(["Negative Sentiment", f"{negative_pct:.1f}%", "ERP Fit (Primary)", erp_primary])
+
+    ov_table = Table(overview_data, colWidths=[100, 120, 100, 120])
+    ov_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+        ("FONTNAME", (3, 0), (3, -1), "Helvetica"),
+        ("TEXTCOLOR", (0, 0), (-1, -1), SLATE_700),
+        ("TEXTCOLOR", (0, 0), (0, -1), SLATE_400),
+        ("TEXTCOLOR", (2, 0), (2, -1), SLATE_400),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("GRID", (0, 0), (-1, -1), 0.3, SLATE_400),
+        *[("BACKGROUND", (0, r), (-1, r), SLATE_100) for r in range(0, len(overview_data), 2)],
+    ]))
+    story.append(ov_table)
+    story.append(Spacer(1, 6))
+
+    if why_now:
+        story.append(Paragraph(f"<b>Why Now:</b> {why_now}", body_style))
+        story.append(Spacer(1, 4))
+
+    if data_note:
+        story.append(Paragraph(f"<i>Note: {data_note}</i>", small_style))
+        story.append(Spacer(1, 4))
+
+    # ── Section 2: Scoring Breakdown ─────────────────────────────────────────
+    if scoring_breakdown:
+        story.append(Paragraph("Opportunity Scoring Breakdown", section_style))
+        bd_header = ["Dimension", "Score", "Bar"]
+        bd_data = [bd_header]
+        labels = {
+            "teamwill_fit": "TEAMWILL ERP Fit",
+            "sentiment_trend": "Sentiment Trend",
+            "market_presence": "Market Presence",
+            "complaint_intensity": "Complaint Intensity",
+        }
+        for key, lbl in labels.items():
+            val = scoring_breakdown.get(key, 0) or 0
+            bd_data.append([lbl, f"{val:.1f}", _unicode_bar(val)])
+        bd_table = Table(bd_data, colWidths=[160, 60, 100])
+        bd_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), INDIGO),
+            ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("TEXTCOLOR", (0, 1), (-1, -1), SLATE_700),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("GRID", (0, 0), (-1, -1), 0.3, SLATE_400),
+            *[("BACKGROUND", (0, r), (-1, r), SLATE_100) for r in range(2, len(bd_data), 2)],
+        ]))
+        story.append(bd_table)
+        story.append(Spacer(1, 6))
+
+    # ── Section 3: Top Complaints ─────────────────────────────────────────────
+    story.append(Paragraph("Top Complaint Topics", section_style))
+    if top_complaints:
+        tc_header = ["Complaint Topic", "Count", "% of Reviews", "Sales Angle"]
+        tc_data = [tc_header]
+        for c in top_complaints[:5]:
+            lbl = c.get("label", "")
+            tc_data.append([
+                lbl,
+                str(c.get("count", 0)),
+                f"{c.get('pct', 0):.1f}%",
+                _get_sales_tip(lbl),
+            ])
+        tc_table = Table(tc_data, colWidths=[120, 40, 70, 170])
+        tc_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), INDIGO),
+            ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("TEXTCOLOR", (0, 1), (-1, -1), SLATE_700),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("GRID", (0, 0), (-1, -1), 0.3, SLATE_400),
+            ("WORDWRAP", (3, 1), (3, -1), 1),
+            *[("BACKGROUND", (0, r), (-1, r), SLATE_100) for r in range(2, len(tc_data), 2)],
+        ]))
+        story.append(tc_table)
+    else:
+        story.append(Paragraph("No complaint data available.", body_style))
+    story.append(Spacer(1, 6))
+
+    # ── Section 4: Sentiment Trend ────────────────────────────────────────────
+    if sentiment_trend:
+        story.append(Paragraph("Sentiment Trend (Last 6 Months)", section_style))
+        st_header = ["Month", "Negative %", "Avg Rating"]
+        st_data = [st_header]
+        for row in sentiment_trend[-6:]:
+            m = row.get("month", "")
+            yr, mo = m.split("-") if "-" in m else (m, "?")
+            month_names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+            m_label = f"{month_names[int(mo)-1]} {yr[-2:]}" if mo.isdigit() else m
+            neg = row.get("negative_pct", 0)
+            rat = row.get("avg_rating")
+            st_data.append([
+                m_label,
+                f"{neg:.1f}%",
+                f"{rat:.1f}" if rat is not None else "—",
+            ])
+        st_table = Table(st_data, colWidths=[80, 80, 80])
+        st_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), INDIGO),
+            ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("TEXTCOLOR", (0, 1), (-1, -1), SLATE_700),
+            ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("GRID", (0, 0), (-1, -1), 0.3, SLATE_400),
+            *[("BACKGROUND", (0, r), (-1, r), SLATE_100) for r in range(2, len(st_data), 2)],
+        ]))
+        story.append(st_table)
+        story.append(Spacer(1, 6))
+
+    # ── Section 5: Voice of Customer Quotes ──────────────────────────────────
+    negative_quotes = [q for q in real_quotes if q.get("sentiment") == "negative"][:3]
+    if negative_quotes:
+        story.append(Paragraph("Voice of Customer — Key Complaints", section_style))
+        for q in negative_quotes:
+            text = q.get("text", "")
+            if len(text) > 220:
+                text = text[:217] + "\u2026"
+            rating = q.get("rating")
+            date = q.get("date", "")
+            date_str = ""
+            if date:
+                try:
+                    date_str = datetime.fromisoformat(date[:10]).strftime("%b %Y")
+                except Exception:
+                    date_str = date[:7]
+            meta = f"Rating: {rating}/5 · {date_str}" if rating else date_str
+            story.append(Paragraph(f'\u201c{text}\u201d', body_style))
+            if meta:
+                story.append(Paragraph(meta, small_style))
+            story.append(Spacer(1, 5))
+
+    # ── Section 6: ERP Fit + Opening Line ────────────────────────────────────
+    story.append(Paragraph("TEAMWILL ERP Fit", section_style))
+    erp_data = [
+        ["Primary Module", erp_primary],
+        ["Secondary Module", erp_secondary],
+    ]
+    erp_table = Table(erp_data, colWidths=[140, 200])
+    erp_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("TEXTCOLOR", (0, 0), (0, -1), SLATE_400),
+        ("TEXTCOLOR", (1, 0), (1, -1), SLATE_700),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("GRID", (0, 0), (-1, -1), 0.3, SLATE_400),
+        ("BACKGROUND", (0, 0), (-1, 0), SLATE_100),
+    ]))
+    story.append(erp_table)
+    story.append(Spacer(1, 8))
+
+    top_complaint_label = top_complaints[0].get("label", "operational challenges") if top_complaints else "operational challenges"
+    opening_line = (
+        f"We noticed companies in the {sector.lower()} sector are increasingly struggling with "
+        f"{top_complaint_label.lower()} \u2014 is that something your team has been dealing with?"
+    )
+    story.append(Paragraph("<b>Suggested Opening Line:</b>", label_style))
+    story.append(Paragraph(f'\u201c{opening_line}\u201d', body_style))
+
+    # ── Build PDF ─────────────────────────────────────────────────────────────
+    buf = io.BytesIO()
+    content_frame = Frame(
+        LEFT_MARGIN,
+        BOT_MARGIN,
+        PAGE_W - LEFT_MARGIN - RIGHT_MARGIN,
+        PAGE_H - TOP_MARGIN - BOT_MARGIN - 30 * mm,
+        id="main",
+    )
+    page_tmpl = PageTemplate(id="company", frames=[content_frame], onPage=_company_header_footer)
+    doc = BaseDocTemplate(
+        buf,
+        pagesize=A4,
+        pageTemplates=[page_tmpl],
+        title=f"TEAMWILL — {name} Company Brief",
+        author="TEAMWILL AI Platform",
+    )
+    doc.build(story)
+    buf.seek(0)
+    pdf_bytes = buf.read()
+    logger.info("Company brief PDF generated for %s: %d bytes", name, len(pdf_bytes))
+    return pdf_bytes
+
+
+def _get_sales_tip(label: str) -> str:
+    lower = label.lower()
+    if "service" in lower or "customer" in lower:
+        return "Ask about their customer service workflow"
+    if "billing" in lower or "pricing" in lower or "policy" in lower:
+        return "Ask about their invoicing & billing process"
+    if "claim" in lower:
+        return "Ask about their claims processing system"
+    if "wait" in lower or "response" in lower or "time" in lower:
+        return "Ask about their response-time management"
+    if "reliab" in lower or "quality" in lower:
+        return "Ask about their quality control systems"
+    if "staff" in lower or "commun" in lower:
+        return "Ask about their team coordination tools"
+    return "Explore their current operational workflow"

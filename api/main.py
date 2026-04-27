@@ -40,7 +40,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -89,6 +89,33 @@ from database.models import (
 # App setup
 # ---------------------------------------------------------------------------
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def _lifespan(_):
+    """
+    Warm up the RAG models at startup so the first request is instant.
+    Both models are ~500 MB total; loading takes ~20 s on first run,
+    then they stay in memory for the lifetime of the process.
+    """
+    import threading
+
+    def _preload():
+        try:
+            _get_rag_embedder()
+            _get_cross_encoder()
+            print("[RAG] Models preloaded and ready.")
+        except Exception as exc:
+            print(f"[RAG] Preload warning (non-fatal): {exc}")
+
+    # Set NO_RAG_PRELOAD=1 to skip model loading (useful when torch DLL crashes on startup)
+    if not os.environ.get("NO_RAG_PRELOAD"):
+        threading.Thread(target=_preload, daemon=True).start()
+    else:
+        print("[RAG] Preload skipped (NO_RAG_PRELOAD=1). Models will load on first use.")
+    yield
+
+
 app = FastAPI(
     title="Automotive Market Intelligence API",
     description=(
@@ -99,6 +126,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=_lifespan,
 )
 
 app.add_middleware(
@@ -197,6 +225,8 @@ class ListingOut(BaseModel):
     listing_year: Optional[int]
     scraped_at: datetime
     data_origin: str = "seeded"
+    brand_name: Optional[str] = None
+    model_name: Optional[str] = None
 
 
 class ArticleOut(BaseModel):
@@ -573,49 +603,183 @@ def list_car_listings(
     offset: int = Query(0, ge=0),
     brand: Optional[str] = Query(None, description="Filter by brand name (case-insensitive)"),
     origin: Optional[str] = Query(None, description="Filter by provenance: seeded | scraped | imported"),
+    currency: Optional[str] = Query(None, description="Filter by currency: EUR | TND"),
+    search: Optional[str] = Query(None, description="Search by brand or model name (case-insensitive)"),
+    sort: Optional[str] = Query(None, description="Sort order: price_asc | price_desc | newest"),
 ):
-    """Paginated car marketplace listings, newest first."""
+    """Paginated car marketplace listings."""
     with get_db_session() as session:
-        q = session.query(CarListing)
+        q = (
+            session.query(CarListing, CarModel.name.label("model_name"), CarBrand.name.label("brand_name"))
+            .outerjoin(CarModel, CarListing.model_id == CarModel.id)
+            .outerjoin(CarBrand, CarModel.brand_id == CarBrand.id)
+        )
         if brand:
-            q = (
-                q.join(CarModel, CarListing.model_id == CarModel.id)
-                 .join(CarBrand, CarModel.brand_id == CarBrand.id)
-                 .filter(CarBrand.name.ilike(f"%{brand}%"))
+            q = q.filter(CarBrand.name.ilike(f"%{brand}%"))
+        if search:
+            pattern = f"%{search}%"
+            q = q.filter(
+                CarBrand.name.ilike(pattern) | CarModel.name.ilike(pattern)
             )
         if origin:
             q = q.filter(CarListing.data_origin == origin)
+        if currency:
+            q = q.filter(CarListing.currency == currency.upper())
         total = q.count()
-        rows = q.order_by(CarListing.scraped_at.desc()).offset(offset).limit(limit).all()
+        if sort == "price_asc":
+            order = CarListing.listed_price.asc().nullslast()
+        elif sort == "price_desc":
+            order = CarListing.listed_price.desc().nullsfirst()
+        else:
+            order = CarListing.scraped_at.desc()
+        rows = q.order_by(order).offset(offset).limit(limit).all()
+
+        items = []
+        for listing, model_name, brand_name in rows:
+            d = ListingOut.model_validate(listing).model_dump()
+            d["brand_name"] = brand_name
+            d["model_name"] = model_name
+            items.append(d)
+
         return PagedResponse(
             total=total,
             limit=limit,
             offset=offset,
-            items=[ListingOut.model_validate(r) for r in rows],
+            items=items,
         )
 
 
 # ---- Articles -------------------------------------------------------------
 
+# Keywords that make an article relevant to TEAMWILL's sales context.
+# Any article whose title contains at least one of these passes the relevance filter.
+_RELEVANCE_KEYWORDS = [
+    # ── Automotive / vehicles ────────────────────────────────────────────────
+    "car", "cars", "auto", "vehicle", "vehicles", "voiture", "voitures", "automobile",
+    "automobiles", "véhicule", "véhicules", "automotive", "dealer", "dealership",
+    "concessionnaire", "fleet", "flotte", "leasing", "lease",
+    "carburant", "essence", "diesel", "petrol", "fuel",
+    "motor", "moteur", "engine", "gearbox", "transmission", "turbo",
+    "recall", "rappel constructeur", "defect", "défaut", "breakdown", "panne",
+    "pièces", "spare parts", "réparation", "repair", "entretien", "maintenance",
+    "driving", "conduite", "road", "route", "pothole", "nid de poule",
+    "traffic", "trafic", "accident", "collision", "crash",
+    # Car brands
+    "Tesla", "BMW", "Toyota", "Renault", "Peugeot", "Volkswagen", "VW",
+    "Hyundai", "Kia", "Stellantis", "Ford", "Mercedes", "Citroën", "Fiat",
+    "Dacia", "Chery", "MG", "BYD", "Changan", "Geely", "Skoda", "Seat",
+    "Audi", "Volvo", "Porsche", "Honda", "Nissan", "Mitsubishi", "Suzuki",
+    "Opel", "Alfa Romeo", "Jeep", "Land Rover", "Range Rover",
+    # EV / green mobility
+    "electric vehicle", "EV", "hybrid", "hybride", "plug-in", "battery",
+    "charging", "recharge", "borne de recharge", "zero emission",
+    # Tunisian auto industry specifics
+    "tunisie auto", "marché automobile tunisien", "industrie automobile tunisie",
+    "STAFIM", "ENNAKL", "SATA", "AUTO HALL", "concessionnaire tunisien",
+    # ── Insurance ────────────────────────────────────────────────────────────
+    "insurance", "assurance", "insurer", "assureur", "premium", "prime",
+    "claim", "sinistre", "coverage", "couverture", "policy", "police",
+    "underwriting", "reinsurance", "réassurance", "indemnité", "liability",
+    "responsabilité", "motor insurance", "auto insurance", "assurance auto",
+    "assurance automobile", "P/C", "property casualty", "risk", "risque",
+    "indemnification", "actuary", "actuaire", "loss ratio", "combined ratio",
+    "insured", "assuré", "broker", "courtier", "agent d'assurance",
+    # Customer experience / satisfaction
+    "customer satisfaction", "satisfaction client", "insatisfaction",
+    "complaint", "réclamation", "customer service", "service client",
+    "review", "avis client", "rating", "note client", "NPS",
+    "customer experience", "expérience client", "retention", "fidélisation",
+    # ── Economy / Finance ────────────────────────────────────────────────────
+    "economy", "économie", "economic", "économique", "finance", "financial",
+    "financier", "market", "marché", "inflation", "price", "prix",
+    "cost", "coût", "tariff", "tarif", "trade", "commerce", "export", "import",
+    "growth", "croissance", "recession", "récession", "crisis", "crise",
+    "GDP", "PIB", "investment", "investissement", "interest rate", "taux",
+    "budget", "tax", "impôt", "fiscal", "bank", "banque", "credit", "crédit",
+    "loan", "prêt", "stock", "bourse", "currency", "devise", "dollar", "euro",
+    "dinar", "purchasing power", "pouvoir d'achat", "supply chain",
+    "cost of living", "coût de la vie",
+    # ── Energy / Commodities ────────────────────────────────────────────────
+    "oil", "pétrole", "gas", "gaz", "energy", "énergie", "crude", "OPEC",
+    "pipeline", "commodity", "matière première", "fuel price", "prix du carburant",
+    "prix de l'essence", "prix du pétrole",
+    # ── ERP / Information Systems / Management ───────────────────────────────
+    "ERP", "odoo", "oddo", "alfa", "miles", "SAP", "oracle", "dynamics",
+    "logiciel de gestion", "management system", "système d'information",
+    "information system", "enterprise resource", "progiciel",
+    "gestion de", "digital transformation", "transformation digitale",
+    "software", "logiciel", "digital", "technology", "technologie",
+    "AI", "IA", "intelligence artificielle", "artificial intelligence",
+    "innovation", "data", "analytics", "plateforme", "platform",
+    "automation", "automatisation", "workflow", "process", "processus",
+    "operational efficiency", "efficacité opérationnelle",
+    "information management", "gestion de l'information",
+    # Managerial / operational problems
+    "management problem", "operational problem", "inefficiency", "bottleneck",
+    "legacy system", "système obsolète", "digital gap", "retard numérique",
+    "expert opinion", "industry report", "étude de marché", "rapport sectoriel",
+    "analyst", "analyste", "forecast", "prévision", "outlook", "perspective",
+    # ── Tunisian economy / industry ──────────────────────────────────────────
+    "tunisie", "tunisien", "tunisian", "économie tunisienne", "industrie tunisienne",
+    "banque centrale tunisie", "BCT", "BIAT", "STB", "Attijari",
+    "zone franche", "investissement étranger", "IDE",
+    # ── Manufacturing / Industry ────────────────────────────────────────────
+    "manufacturing", "industrie", "production", "factory", "usine",
+    "supply", "shortage", "pénurie", "component", "composant",
+]
+
+
 @app.get("/api/articles", response_model=PagedResponse, tags=["articles"])
 def list_articles(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    category: Optional[str] = Query(None, description="Filter by category: EV, Market, Technology, Manufacturing, Regulation, Insurance"),
-    region: Optional[str] = Query(None, description="Filter by region"),
+    category: Optional[str] = Query(None, description="Single category filter (case-insensitive)"),
+    categories: Optional[str] = Query(None, description="Comma-separated list of categories, e.g. Automotive,EV,Market"),
+    region: Optional[str] = Query(None, description="Region filter: TN | EU (also matches Europe) | Global"),
+    search: Optional[str] = Query(None, description="Keyword search in article title (case-insensitive)"),
     origin: Optional[str] = Query(None, description="Filter by provenance: seeded | scraped | imported"),
+    relevant_only: bool = Query(False, description="When true, restrict to articles with automotive/insurance/economy keywords in title"),
 ):
-    """Paginated market-trend articles, newest first. Filterable by category, region, and origin."""
+    """Paginated market-trend articles, newest first. Filterable by category, region, origin, and keyword search."""
+    from sqlalchemy import or_
     with get_db_session() as session:
         q = session.query(MarketTrendArticle)
+        # Single category (backward-compat)
         if category:
             q = q.filter(MarketTrendArticle.category.ilike(category))
+        # Multi-category: comma-separated list
+        if categories:
+            cats = [c.strip() for c in categories.split(",") if c.strip()]
+            if cats:
+                q = q.filter(or_(*[MarketTrendArticle.category.ilike(c) for c in cats]))
+        # Region: EU also matches "Europe"; TN matches "TN" or "Tunisia"
         if region:
-            q = q.filter(MarketTrendArticle.region.ilike(f"%{region}%"))
+            r = region.strip().upper()
+            if r == "EU":
+                q = q.filter(or_(
+                    MarketTrendArticle.region.ilike("EU"),
+                    MarketTrendArticle.region.ilike("Europe"),
+                ))
+            elif r == "TN":
+                q = q.filter(or_(
+                    MarketTrendArticle.region.ilike("TN"),
+                    MarketTrendArticle.region.ilike("Tunisia"),
+                ))
+            else:
+                q = q.filter(MarketTrendArticle.region.ilike(f"%{region}%"))
+        # Keyword search in title
+        if search:
+            q = q.filter(MarketTrendArticle.title.ilike(f"%{search}%"))
         if origin:
             q = q.filter(MarketTrendArticle.data_origin == origin)
+        # Relevance filter: title must mention at least one automotive/insurance/economy keyword
+        if relevant_only:
+            q = q.filter(or_(*[MarketTrendArticle.title.ilike(f"%{kw}%") for kw in _RELEVANCE_KEYWORDS]))
         total = q.count()
-        rows = q.order_by(MarketTrendArticle.scraped_at.desc()).offset(offset).limit(limit).all()
+        rows = q.order_by(
+            MarketTrendArticle.publication_date.desc().nullslast(),
+            MarketTrendArticle.scraped_at.desc(),
+        ).offset(offset).limit(limit).all()
         return PagedResponse(
             total=total,
             limit=limit,
@@ -1337,31 +1501,45 @@ def dashboard_summary():
     """
     from urllib.parse import urlparse as _urlparse
     with get_db_session() as session:
-        total_car_reviews       = session.query(CarReview).count()
-        total_insurance_reviews = session.query(InsuranceReview).count()
-        total_listings          = session.query(CarListing).count()
-        total_articles          = session.query(MarketTrendArticle).count()
-        total_competitors       = session.query(CompetitorPricing).count()
-        total_brands            = session.query(CarBrand).count()
+        total_car_reviews          = session.query(CarReview).count()
+        total_insurance_reviews    = session.query(InsuranceReview).count()
+        total_listings             = session.query(CarListing).count()
+        total_articles             = session.query(MarketTrendArticle).count()
+        total_competitors          = session.query(CompetitorPricing).count()
+        total_brands               = session.query(CarBrand).filter(CarBrand.is_active.is_(True)).count()
+        total_insurance_companies  = session.query(InsuranceCompany).count()
 
-        # Source breakdown for car reviews
-        car_reviews_sample = (
-            session.query(CarReview.source_url)
-            .order_by(CarReview.scraped_at.desc())
-            .limit(500)
+        # Ingestion sources distribution — use ReviewSource table directly
+        # to show ALL sources with real scraped record counts, not just URL sampling
+        from sqlalchemy import case as sa_case
+        source_rows = (
+            session.query(ReviewSource.name, ReviewSource.total_records_scraped)
+            .filter(ReviewSource.total_records_scraped > 0)
+            .order_by(ReviewSource.total_records_scraped.desc())
             .all()
         )
-        domain_counts: dict = {}
-        for (url,) in car_reviews_sample:
-            try:
-                d = _urlparse(url).netloc.replace("www.", "")
-            except Exception:
-                d = "unknown"
-            domain_counts[d] = domain_counts.get(d, 0) + 1
+        # Also count MarketTrendArticle by source name for sources not tracked in ReviewSource
+        article_source_rows = (
+            session.query(ReviewSource.name, func.count(MarketTrendArticle.id))
+            .join(MarketTrendArticle, MarketTrendArticle.source_id == ReviewSource.id)
+            .filter(MarketTrendArticle.data_origin == "scraped")
+            .group_by(ReviewSource.name)
+            .all()
+        )
+        article_counts = {name: cnt for name, cnt in article_source_rows}
+
+        review_sources_dict: dict = {}
+        for name, total in source_rows:
+            review_sources_dict[name] = total or 0
+        # Merge article counts for sources not already counted
+        for name, cnt in article_counts.items():
+            if name not in review_sources_dict:
+                review_sources_dict[name] = cnt
+
         review_sources = sorted(
-            [{"source": k, "count": v} for k, v in domain_counts.items()],
+            [{"source": k, "count": v} for k, v in review_sources_dict.items() if v > 0],
             key=lambda x: -x["count"],
-        )[:8]
+        )[:10]
 
         # Provenance counts
         real_articles = session.query(MarketTrendArticle).filter(MarketTrendArticle.data_origin == "scraped").count()
@@ -1379,6 +1557,7 @@ def dashboard_summary():
         "total_articles": total_articles,
         "total_competitors": total_competitors,
         "total_brands": total_brands,
+        "total_insurance_companies": total_insurance_companies,
         "review_sources": review_sources,
         "pipeline_status": ps,
         "source_health": [s.model_dump() for s in sh],
@@ -1445,9 +1624,9 @@ def listings_summary():
     """Aggregate stats: total, avg price, avg mileage, countries."""
     with get_db_session() as session:
         total = session.query(CarListing).count()
-        rows = session.query(CarListing.listed_price, CarListing.mileage_km, CarListing.country).all()
+        rows = session.query(CarListing.listed_price, CarListing.mileage_km, CarListing.country, CarListing.currency).all()
 
-        prices = [r.listed_price for r in rows if r.listed_price is not None]
+        prices = [r.listed_price for r in rows if r.listed_price is not None and r.currency == "EUR"]
         mileages = [r.mileage_km for r in rows if r.mileage_km is not None]
         country_counts: dict = {}
         for r in rows:
@@ -1741,11 +1920,381 @@ def export_weekly_brief():
     )
 
 
+@app.get(
+    "/api/export/company/{company_type}/{company_id}",
+    tags=["export"],
+    summary="Download PDF pre-call brief for a single company",
+)
+def export_company_brief(company_type: str, company_id: UUID):
+    """Generate and return a PDF pre-call intelligence brief for a car brand or insurance company."""
+    from datetime import datetime as _dt, timezone as _tz
+    from analytics.pdf_exporter import generate_company_brief
+
+    if company_type == "car":
+        profile = car_brand_profile(company_id)
+    elif company_type == "insurance":
+        profile = insurance_company_profile(company_id)
+    else:
+        raise HTTPException(status_code=400, detail="company_type must be 'car' or 'insurance'")
+
+    profile_dict = profile.model_dump()
+    pdf_bytes = generate_company_brief(profile_dict)
+
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in profile_dict.get("name", "company"))
+    date_str = _dt.now(_tz.utc).strftime("%Y-%m-%d")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="teamwill-{safe_name}-{date_str}.pdf"'
+        },
+    )
+
+
 # ===========================================================================
 # AI Market Analyst — Chat endpoint (Groq-powered, LLaMA 3.3 70B)
 # ===========================================================================
 
 from groq import Groq
+
+# ===========================================================================
+# RAG — Hybrid Retrieval-Augmented Generation Layer
+# ===========================================================================
+#
+# Architecture:
+#   Query ──► BGE-base-en-v1.5 (768-dim, L2-norm)
+#          ──► Semantic search  (pgvector HNSW, cosine)   ┐
+#          ──► BM25 full-text   (PostgreSQL tsvector GIN)  ├─► RRF merge
+#          ──► Cross-encoder rerank (ms-marco-MiniLM-L-6) ─┘
+#          ──► Grounded context injected into Groq LLaMA 3.3 70B prompt
+#
+# Models loaded lazily on first use (no startup penalty):
+#   • BAAI/bge-base-en-v1.5          — retrieval embedding (~440 MB)
+#   • cross-encoder/ms-marco-MiniLM-L-6-v2 — reranking     (~67 MB)
+# ===========================================================================
+
+_RAG_EMBEDDER = None
+_RAG_CROSS_ENCODER = None
+# BGE query instruction prefix (passages have NO prefix — asymmetric retrieval)
+_BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
+
+
+def _safe_str(text: str) -> str:
+    """Strip surrogate characters that break UTF-8 / JSON encoding.
+    Review texts scraped from the web sometimes contain lone surrogates
+    (U+D800–U+DFFF) that are invalid in UTF-8 and cause UnicodeEncodeError
+    when Groq serialises the request body.
+    """
+    return text.encode("utf-8", errors="replace").decode("utf-8")
+
+
+def _get_rag_embedder():
+    global _RAG_EMBEDDER
+    if _RAG_EMBEDDER is None:
+        from sentence_transformers import SentenceTransformer
+        _RAG_EMBEDDER = SentenceTransformer("BAAI/bge-base-en-v1.5")
+    return _RAG_EMBEDDER
+
+
+def _get_cross_encoder():
+    global _RAG_CROSS_ENCODER
+    if _RAG_CROSS_ENCODER is None:
+        from sentence_transformers import CrossEncoder
+        _RAG_CROSS_ENCODER = CrossEncoder(
+            "cross-encoder/ms-marco-MiniLM-L-6-v2", max_length=512
+        )
+    return _RAG_CROSS_ENCODER
+
+
+def _embed_query(text: str) -> list:
+    """Embed a query string with BGE query prefix, L2-normalised."""
+    model = _get_rag_embedder()
+    emb = model.encode(_BGE_QUERY_PREFIX + text, normalize_embeddings=True)
+    return emb.tolist()
+
+
+def _rrf_merge(ranked_lists: list, k: int = 60) -> list:
+    """
+    Reciprocal Rank Fusion across multiple ranked doc lists.
+    k=60 is the standard constant from the original RRF paper (Cormack 2009).
+    """
+    scores: dict = {}
+    docs: dict = {}
+    for ranked in ranked_lists:
+        for rank, doc in enumerate(ranked):
+            doc_id = doc["id"]
+            scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank + 1)
+            if doc_id not in docs:
+                docs[doc_id] = doc
+    merged = sorted(docs.values(), key=lambda d: scores[d["id"]], reverse=True)
+    for doc in merged:
+        doc["rrf_score"] = round(scores[doc["id"]], 6)
+    return merged
+
+
+def _cross_rerank(query: str, candidates: list) -> list:
+    """
+    Cross-encoder reranking of candidates for final precision.
+    Returns candidates sorted by rerank_score descending.
+    """
+    if not candidates:
+        return candidates
+    encoder = _get_cross_encoder()
+    pairs = [(query, c["text"][:500]) for c in candidates]
+    scores = encoder.predict(pairs)
+    for cand, score in zip(candidates, scores):
+        cand["rerank_score"] = float(score)
+    return sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# Per-corpus semantic search helpers (pgvector cosine)
+# ---------------------------------------------------------------------------
+
+def _cosine_top_n(query_emb: list, rows_with_emb: list, top_n: int) -> list:
+    """
+    Pure numpy cosine similarity ranking.
+    Both query and stored embeddings are L2-normalised by BGE, so
+    cosine similarity == dot product — no division needed.
+    rows_with_emb: list of (doc_dict, embedding_list) tuples.
+    Returns top_n doc_dicts sorted by similarity descending.
+    """
+    import numpy as np
+    if not rows_with_emb:
+        return []
+    q = np.array(query_emb, dtype=np.float32)
+    matrix = np.array([r[1] for r in rows_with_emb], dtype=np.float32)
+    scores = matrix @ q  # shape (n,)
+    top_idx = np.argsort(scores)[::-1][:top_n]
+    result = []
+    for idx in top_idx:
+        doc = dict(rows_with_emb[idx][0])
+        doc["score"] = float(scores[idx])
+        result.append(doc)
+    return result
+
+
+def _sem_articles(query_emb: list, session, top_n: int = 20) -> list:
+    from sqlalchemy import text as _t
+    sql = _t("""
+        SELECT
+            id::text          AS id,
+            title,
+            coalesce(body_text, '') AS body,
+            category,
+            region,
+            publication_date::text AS pub_date,
+            embedding
+        FROM market_trend_articles
+        WHERE embedding IS NOT NULL
+    """)
+    try:
+        rows = session.execute(sql).fetchall()
+    except Exception:
+        return []
+    pairs = [
+        (
+            {
+                "id": r.id,
+                "text": f"{r.title}. {r.body[:400]}",
+                "source_type": "article",
+                "score": 0.0,
+                "metadata": {"category": r.category, "region": r.region, "date": r.pub_date},
+            },
+            r.embedding,
+        )
+        for r in rows if r.embedding
+    ]
+    return _cosine_top_n(query_emb, pairs, top_n)
+
+
+def _bm25_articles(query: str, session, top_n: int = 20) -> list:
+    from sqlalchemy import text as _t
+    sql = _t("""
+        SELECT
+            id::text          AS id,
+            title,
+            coalesce(body_text, '') AS body,
+            category,
+            region,
+            publication_date::text AS pub_date,
+            ts_rank_cd(
+                to_tsvector('english', coalesce(title,'') || ' ' || coalesce(body_text,'')),
+                plainto_tsquery('english', :q)
+            ) AS score
+        FROM market_trend_articles
+        WHERE to_tsvector('english', coalesce(title,'') || ' ' || coalesce(body_text,''))
+              @@ plainto_tsquery('english', :q)
+        ORDER BY score DESC
+        LIMIT :n
+    """)
+    try:
+        rows = session.execute(sql, {"q": query, "n": top_n}).fetchall()
+    except Exception:
+        return []
+    return [
+        {
+            "id": r.id,
+            "text": f"{r.title}. {r.body[:400]}",
+            "source_type": "article",
+            "score": float(r.score),
+            "metadata": {"category": r.category, "region": r.region, "date": r.pub_date},
+        }
+        for r in rows
+    ]
+
+
+def _sem_car_reviews(query_emb: list, session, top_n: int = 20, brand_name: str = None) -> list:
+    from sqlalchemy import text as _t
+    brand_clause = (
+        "AND cm.brand_id IN (SELECT id FROM car_brands WHERE name ILIKE :brand)"
+        if brand_name else ""
+    )
+    sql = _t(f"""
+        SELECT
+            cr.id::text       AS id,
+            coalesce(cr.review_title, '') AS rtitle,
+            cr.review_text,
+            cr.rating,
+            cr.review_date::text AS rev_date,
+            cm.name           AS model_name,
+            cb.name           AS brand_name,
+            cr.embedding
+        FROM car_reviews cr
+        JOIN car_models cm ON cr.model_id = cm.id
+        JOIN car_brands cb ON cm.brand_id = cb.id
+        WHERE cr.embedding IS NOT NULL {brand_clause}
+    """)
+    params: dict = {}
+    if brand_name:
+        params["brand"] = f"%{brand_name}%"
+    try:
+        rows = session.execute(sql, params).fetchall()
+    except Exception:
+        return []
+    pairs = [
+        (
+            {
+                "id": r.id,
+                "text": f"{r.brand_name} {r.model_name}: {r.rtitle}. {r.review_text[:350]}",
+                "source_type": "car_review",
+                "score": 0.0,
+                "metadata": {
+                    "brand": r.brand_name, "model": r.model_name,
+                    "rating": float(r.rating) if r.rating else None, "date": r.rev_date,
+                },
+            },
+            r.embedding,
+        )
+        for r in rows if r.embedding
+    ]
+    return _cosine_top_n(query_emb, pairs, top_n)
+
+
+def _sem_insurance_reviews(
+    query_emb: list, session, top_n: int = 20, company_name: str = None
+) -> list:
+    from sqlalchemy import text as _t
+    company_clause = "AND ic.name ILIKE :company" if company_name else ""
+    sql = _t(f"""
+        SELECT
+            ir.id::text       AS id,
+            coalesce(ir.review_title, '') AS rtitle,
+            ir.review_text,
+            ir.rating,
+            ir.review_date::text AS rev_date,
+            ic.name           AS company_name,
+            ir.embedding
+        FROM insurance_reviews ir
+        JOIN insurance_companies ic ON ir.company_id = ic.id
+        WHERE ir.embedding IS NOT NULL {company_clause}
+    """)
+    params: dict = {}
+    if company_name:
+        params["company"] = f"%{company_name}%"
+    try:
+        rows = session.execute(sql, params).fetchall()
+    except Exception:
+        return []
+    pairs = [
+        (
+            {
+                "id": r.id,
+                "text": f"{r.company_name}: {r.rtitle}. {r.review_text[:350]}",
+                "source_type": "insurance_review",
+                "score": 0.0,
+                "metadata": {
+                    "company": r.company_name,
+                    "rating": float(r.rating) if r.rating else None, "date": r.rev_date,
+                },
+            },
+            r.embedding,
+        )
+        for r in rows if r.embedding
+    ]
+    return _cosine_top_n(query_emb, pairs, top_n)
+
+
+# ---------------------------------------------------------------------------
+# Primary RAG retrieval function
+# ---------------------------------------------------------------------------
+
+def _rag_retrieve(
+    query: str,
+    session,
+    corpus: str = "all",
+    top_k: int = 5,
+    brand_name: str = None,
+    company_name: str = None,
+    pool: int = 20,
+) -> list:
+    """
+    Full hybrid RAG pipeline:
+      1. Embed query with BGE-base-en-v1.5 (768-dim, L2-norm)
+      2. Semantic search per corpus (pgvector cosine via CAST)
+      3. BM25 full-text search (PostgreSQL tsvector) for articles
+      4. RRF merge across all ranked lists
+      5. Cross-encoder rerank top-40 → top_k
+
+    corpus: "articles" | "car_reviews" | "insurance_reviews" | "all"
+    Returns list of dicts: {id, text, source_type, score, rrf_score, rerank_score, metadata}
+    Silently returns [] on any infrastructure error (embeddings not indexed yet, etc.).
+    """
+    try:
+        query_emb = _embed_query(query)
+    except Exception:
+        return []
+
+    ranked_lists: list = []
+
+    if corpus in ("articles", "all"):
+        sem = _sem_articles(query_emb, session, pool)
+        bm25 = _bm25_articles(query, session, pool)
+        # RRF within the article corpus (semantic + keyword)
+        article_pool = _rrf_merge([sem, bm25])[:pool] if (sem or bm25) else []
+        if article_pool:
+            ranked_lists.append(article_pool)
+
+    if corpus in ("car_reviews", "all"):
+        sem = _sem_car_reviews(query_emb, session, pool, brand_name)
+        if sem:
+            ranked_lists.append(sem)
+
+    if corpus in ("insurance_reviews", "all"):
+        sem = _sem_insurance_reviews(query_emb, session, pool, company_name)
+        if sem:
+            ranked_lists.append(sem)
+
+    if not ranked_lists:
+        return []
+
+    # Global RRF across all corpora
+    merged = _rrf_merge(ranked_lists) if len(ranked_lists) > 1 else ranked_lists[0]
+
+    # Cross-encoder rerank top-40 → top_k
+    reranked = _cross_rerank(query, merged[:40])
+    return reranked[:top_k]
+
 
 class AnalystMessage(BaseModel):
     role: str = Field(..., pattern="^(user|assistant)$")
@@ -1892,7 +2441,8 @@ def _call_groq(system_prompt: str, user_message: str, history: list) -> str:
         model="llama-3.3-70b-versatile",
         messages=messages,
         max_tokens=1024,
-        temperature=0.7,
+        temperature=0.3,   # conservative nucleus: factual market QA, reduces hallucination
+        top_p=0.85,        # nucleus sampling — Holtzman et al. (2020)
     )
 
     return response.choices[0].message.content
@@ -1906,36 +2456,73 @@ def _call_groq(system_prompt: str, user_message: str, history: list) -> str:
 )
 async def analyst_chat(body: AnalystChatRequest):
     """
-    Send a conversation to the AI Market Analyst. The backend gathers live
-    database context and forwards to Groq for an intelligence-grade response.
+    Send a conversation to the AI Market Analyst.
+
+    Context strategy (layered):
+      1. Structural overview — record counts, brand scores, opportunity signals (static SQL).
+         Gives the LLM a "map" of what data exists.
+      2. RAG evidence — top-8 chunks semantically matched to the user's actual question
+         via hybrid retrieval (pgvector + BM25 + RRF) and cross-encoder reranking.
+         Grounds the answer in real reviews and articles, not just aggregates.
     """
     if not body.messages:
         raise HTTPException(status_code=400, detail="messages list cannot be empty")
 
-    # Gather live DB context
+    # Extract the user's last message before opening the session
+    all_msgs = [{"role": m.role, "content": m.content} for m in body.messages]
+    history = all_msgs[:-1]
+    user_message = all_msgs[-1]["content"]
+
+    # Gather structural context + RAG evidence in one session
     with get_db_session() as session:
         db_context, sources = _gather_analyst_context(session)
+
+        # RAG: retrieve the 8 most relevant chunks for this specific question
+        rag_section = ""
+        try:
+            rag_hits = _rag_retrieve(
+                query=user_message,
+                session=session,
+                corpus="all",
+                top_k=8,
+                pool=20,
+            )
+            if rag_hits:
+                lines = []
+                for hit in rag_hits:
+                    stype = hit["source_type"].replace("_", " ").title()
+                    meta = hit.get("metadata", {})
+                    meta_str = ", ".join(
+                        f"{k}={v}" for k, v in meta.items() if v is not None
+                    )
+                    lines.append(f"[{stype}] ({meta_str})\n{hit['text'][:350]}")
+                rag_section = _safe_str(
+                    "\n\nRETRIEVED EVIDENCE — semantically matched to the question above "
+                    "(hybrid search + cross-encoder reranked):\n"
+                    + "\n---\n".join(lines)
+                )
+                sources.append("rag_retrieval")
+        except Exception:
+            pass  # RAG is additive; structural context remains available
 
     system_prompt = (
         "You are the AI Market Analyst for the Automotive Intelligence Platform, "
         "an expert system built by TEAMWILL. You have access to live database intelligence "
         "about car brands, reviews, listings, insurance companies, competitor pricing, "
         "opportunity signals, and market articles.\n\n"
-        "LIVE DATABASE CONTEXT:\n"
-        f"{db_context}\n\n"
+        "LIVE DATABASE CONTEXT (structural overview):\n"
+        f"{db_context}"
+        f"{rag_section}\n\n"
         "INSTRUCTIONS:\n"
-        "- Answer questions using the live data above. Cite specific numbers.\n"
-        "- Provide actionable market intelligence insights.\n"
+        "- Prioritise the RETRIEVED EVIDENCE above when it is relevant — it contains "
+        "actual review texts and article excerpts grounded in real data.\n"
+        "- Cite specific numbers, brand names, and review quotes from the evidence.\n"
+        "- Provide actionable market intelligence insights for TEAMWILL sales reps.\n"
         "- When discussing opportunity signals, explain what drives the scores.\n"
         "- Be concise but thorough. Use bullet points for clarity.\n"
         "- If asked something not covered by the data, say so honestly.\n"
         "- Format responses with markdown for readability.\n"
     )
-
-    # Split: all messages except last become history, last is the new user message
-    all_msgs = [{"role": m.role, "content": m.content} for m in body.messages]
-    history = all_msgs[:-1]
-    user_message = all_msgs[-1]["content"]
 
     try:
         reply_text = _call_groq(system_prompt, user_message, history)
@@ -2433,6 +3020,217 @@ def pipeline_run_status(run_id: UUID):
         )
 
 
+@app.get(
+    "/api/pipeline/events/{run_id}",
+    tags=["pipeline"],
+    summary="SSE stream for pipeline run progress — pushes status every second until done",
+)
+async def pipeline_events(run_id: UUID):
+    import json as _json
+    import asyncio
+
+    async def _generate():
+        rid = str(run_id)
+        while True:
+            with get_db_session() as session:
+                run = session.query(PipelineRun).filter(PipelineRun.id == rid).first()
+                if not run:
+                    yield 'data: {"error": "run not found"}\n\n'
+                    return
+
+                duration = None
+                if run.started_at:
+                    end = run.finished_at or datetime.now(timezone.utc)
+                    duration = int((end - run.started_at).total_seconds())
+
+                scraper = "unknown"
+                if rid in _running_pipelines:
+                    scraper = _running_pipelines[rid].get(
+                        "current_scraper",
+                        _running_pipelines[rid].get("scraper", "unknown"),
+                    )
+                elif run.task_name.startswith("manual_"):
+                    scraper = run.task_name.replace("manual_", "")
+
+                status = run.status.value if run.status else "unknown"
+                payload = _json.dumps({
+                    "run_id": rid,
+                    "status": status,
+                    "scraper": scraper,
+                    "records_scraped": run.records_scraped or 0,
+                    "records_stored": run.records_stored or 0,
+                    "duration_seconds": duration,
+                    "error_message": run.error_message,
+                })
+                yield f"data: {payload}\n\n"
+
+                if status != "running":
+                    return
+
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Global real-time event stream (SSE broadcast)
+# ---------------------------------------------------------------------------
+
+import asyncio as _asyncio
+import json as _json_mod
+
+# Registry of connected client queues — one per open SSE connection
+_sse_clients: list[_asyncio.Queue] = []
+
+
+async def _broadcast(event: dict) -> None:
+    """Push an event dict to every connected SSE client."""
+    for q in list(_sse_clients):
+        try:
+            q.put_nowait(event)
+        except _asyncio.QueueFull:
+            pass
+
+
+@app.get(
+    "/api/events/stream",
+    tags=["events"],
+    summary="Global SSE stream — pipeline completions, new signals, heartbeat",
+)
+async def global_event_stream():
+    """
+    Persistent Server-Sent Events stream.
+
+    Emits:
+      {"type": "connected"}                          — on connect
+      {"type": "heartbeat"}                          — every 25 s (keep-alive)
+      {"type": "pipeline_complete", "component": str,
+       "records": int, "status": str}               — when a pipeline run finishes
+      {"type": "opportunity_update", "strong": int,
+       "moderate": int, "total": int,
+       "top_entity": str, "top_score": float}        — when signals are rescored
+      {"type": "data_update", "entity": str,
+       "count": int}                                 — when new reviews/articles land
+    """
+    queue: _asyncio.Queue = _asyncio.Queue(maxsize=50)
+    _sse_clients.append(queue)
+
+    # Snapshot of DB state at connection time — used to detect changes
+    _last_seen: dict = {}
+
+    async def _seed_snapshot():
+        with get_db_session() as s:
+            _last_seen["pipeline_ts"] = (
+                s.query(func.max(PipelineRun.finished_at))
+                .filter(PipelineRun.status.in_(["success", "failed", "partial"]))
+                .scalar()
+            )
+            _last_seen["signal_ts"] = s.query(func.max(OpportunitySignal.updated_at)).scalar()
+            _last_seen["review_count"] = s.query(func.count(CarReview.id)).scalar()
+
+    async def _poll():
+        """Poll DB every 3 s and push events when something changes."""
+        while True:
+            await _asyncio.sleep(3)
+            try:
+                with get_db_session() as s:
+                    # ── Pipeline completions ──────────────────────────────
+                    latest_run_ts = (
+                        s.query(func.max(PipelineRun.finished_at))
+                        .filter(PipelineRun.status.in_(["success", "failed", "partial"]))
+                        .scalar()
+                    )
+                    if latest_run_ts and latest_run_ts != _last_seen.get("pipeline_ts"):
+                        run = (
+                            s.query(PipelineRun)
+                            .filter(PipelineRun.finished_at == latest_run_ts)
+                            .first()
+                        )
+                        if run:
+                            await _broadcast({
+                                "type": "pipeline_complete",
+                                "component": run.task_name or "unknown",
+                                "records": (run.records_stored or 0) + (run.records_scraped or 0),
+                                "status": run.status.value if run.status else "unknown",
+                            })
+                        _last_seen["pipeline_ts"] = latest_run_ts
+
+                    # ── Opportunity signal updates ────────────────────────
+                    latest_signal_ts = s.query(func.max(OpportunitySignal.updated_at)).scalar()
+                    if latest_signal_ts and latest_signal_ts != _last_seen.get("signal_ts"):
+                        strong = s.query(func.count(OpportunitySignal.id)).filter(
+                            OpportunitySignal.signal_strength == "strong"
+                        ).scalar() or 0
+                        moderate = s.query(func.count(OpportunitySignal.id)).filter(
+                            OpportunitySignal.signal_strength == "moderate"
+                        ).scalar() or 0
+                        top = (
+                            s.query(OpportunitySignal)
+                            .order_by(OpportunitySignal.overall_score.desc())
+                            .first()
+                        )
+                        await _broadcast({
+                            "type": "opportunity_update",
+                            "strong": strong,
+                            "moderate": moderate,
+                            "total": strong + moderate,
+                            "top_entity": top.entity_name if top else "",
+                            "top_score": float(top.overall_score) if top else 0.0,
+                        })
+                        _last_seen["signal_ts"] = latest_signal_ts
+
+                    # ── New reviews landed ────────────────────────────────
+                    review_count = s.query(func.count(CarReview.id)).scalar() or 0
+                    if review_count != _last_seen.get("review_count"):
+                        delta = review_count - (_last_seen.get("review_count") or 0)
+                        if delta > 0:
+                            await _broadcast({
+                                "type": "data_update",
+                                "entity": "car_reviews",
+                                "count": delta,
+                            })
+                        _last_seen["review_count"] = review_count
+
+            except Exception:
+                pass  # Never crash the poll loop
+
+    async def _generate():
+        await _seed_snapshot()
+        poll_task = _asyncio.create_task(_poll())
+        try:
+            yield f'data: {_json_mod.dumps({"type": "connected"})}\n\n'
+            heartbeat = 0
+            while True:
+                try:
+                    event = await _asyncio.wait_for(queue.get(), timeout=5.0)
+                    yield f'data: {_json_mod.dumps(event)}\n\n'
+                except _asyncio.TimeoutError:
+                    heartbeat += 5
+                    if heartbeat >= 25:
+                        yield f'data: {_json_mod.dumps({"type": "heartbeat"})}\n\n'
+                        heartbeat = 0
+        except GeneratorExit:
+            pass
+        finally:
+            poll_task.cancel()
+            if queue in _sse_clients:
+                _sse_clients.remove(queue)
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Keyword Monitoring — CRUD + search trigger
 # ---------------------------------------------------------------------------
@@ -2523,6 +3321,815 @@ def keyword_search_now():
         articles_inserted=metrics["articles_inserted"],
         articles_duplicate=metrics["articles_duplicate"],
         keywords_searched=metrics["keywords_searched"],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Atlas Magazine scraper endpoint
+# ---------------------------------------------------------------------------
+
+class AtlasMagazineResult(BaseModel):
+    fetched: int
+    inserted: int
+    duplicate: int
+    errors: int
+
+
+@app.post(
+    "/api/scrape/atlas-magazine",
+    response_model=AtlasMagazineResult,
+    tags=["scraping"],
+    summary="Scrape Atlas Magazine RSS feed (MENA insurance news)",
+)
+def scrape_atlas_magazine():
+    """Fetch the Atlas Magazine RSS feed and store new articles as MarketTrendArticles."""
+    from scrapers.atlas_magazine_scraper import run_atlas_magazine_scraper
+    metrics = run_atlas_magazine_scraper()
+    return AtlasMagazineResult(**metrics)
+
+
+# ---------------------------------------------------------------------------
+# Automobile.tn scraper endpoint
+# ---------------------------------------------------------------------------
+
+class AutomobileTnResult(BaseModel):
+    brands_scraped: int
+    models_found: int
+    inserted: int
+    duplicate: int
+    errors: int
+
+
+@app.post(
+    "/api/scrape/automobile-tn",
+    response_model=AutomobileTnResult,
+    tags=["scraping"],
+    summary="Scrape automobile.tn for new-car prices in Tunisia (TND)",
+)
+def scrape_automobile_tn():
+    """Scrape automobile.tn brand pages and store new car listings with TND prices."""
+    from scrapers.automobile_tn_scraper import run_automobile_tn_scraper
+    metrics = run_automobile_tn_scraper()
+    return AutomobileTnResult(**metrics)
+
+
+# ---------------------------------------------------------------------------
+# RSS news scrapers — Motor1, InsideEVs, Insurance Journal, Business News TN,
+#                     L'Economiste Maghrebin
+# ---------------------------------------------------------------------------
+
+class RssFeedResult(BaseModel):
+    source: str
+    fetched: int
+    inserted: int
+    duplicate: int
+    errors: int
+
+
+class RssAllResult(BaseModel):
+    results: List[RssFeedResult]
+    total_inserted: int
+
+
+@app.post(
+    "/api/scrape/rss-news",
+    response_model=RssAllResult,
+    tags=["scraping"],
+    summary="Run all 5 RSS news scrapers (Motor1, InsideEVs, Insurance Journal, Business News TN, L'Economiste)",
+)
+def scrape_rss_news_all():
+    """Fetch all five news RSS feeds and store new articles."""
+    from scrapers.rss_news_scraper import run_all_rss_scrapers
+    results = run_all_rss_scrapers()
+    total = sum(r.get("inserted", 0) for r in results)
+    return RssAllResult(results=[RssFeedResult(**r) for r in results], total_inserted=total)
+
+
+@app.post(
+    "/api/scrape/rss-news/{source_slug}",
+    response_model=RssFeedResult,
+    tags=["scraping"],
+    summary="Run a single RSS scraper by slug",
+)
+def scrape_rss_news_single(source_slug: str):
+    """
+    Run one RSS scraper. Valid slugs:
+    motor1 | insideevs | insurance-journal | business-news-tn | economiste-maghrebin
+    """
+    from scrapers.rss_news_scraper import (
+        run_motor1_scraper, run_insideevs_scraper, run_insurance_journal_scraper,
+        run_business_news_tn_scraper, run_economiste_maghrebin_scraper,
+    )
+    slug_map = {
+        "motor1": run_motor1_scraper,
+        "insideevs": run_insideevs_scraper,
+        "insurance-journal": run_insurance_journal_scraper,
+        "business-news-tn": run_business_news_tn_scraper,
+        "economiste-maghrebin": run_economiste_maghrebin_scraper,
+    }
+    runner = slug_map.get(source_slug)
+    if not runner:
+        raise HTTPException(status_code=404, detail=f"Unknown slug '{source_slug}'. Valid: {list(slug_map)}")
+    return RssFeedResult(**runner())
+
+
+# ---------------------------------------------------------------------------
+# Google Places scraper endpoint
+# ---------------------------------------------------------------------------
+
+class GooglePlacesResult(BaseModel):
+    fetched: int = 0
+    inserted_insurance: int = 0
+    inserted_car: int = 0
+    errors: int = 0
+    not_found: int = 0
+    error: Optional[str] = None
+
+
+@app.post(
+    "/api/scrape/google-places",
+    response_model=GooglePlacesResult,
+    tags=["scraping"],
+    summary="Scrape Google Places reviews for TN insurance companies and car dealers",
+)
+def scrape_google_places(include_insurance: bool = True, include_cars: bool = True):
+    """
+    Requires GOOGLE_PLACES_API_KEY in .env.
+    Returns metrics with inserted review counts.
+    """
+    from scrapers.google_places_scraper import run_google_places_scraper
+    result = run_google_places_scraper(include_insurance=include_insurance, include_cars=include_cars)
+    return GooglePlacesResult(**result)
+
+
+# ---------------------------------------------------------------------------
+# Trustpilot insurance scraper endpoint
+# ---------------------------------------------------------------------------
+
+class TrustpilotInsuranceResult(BaseModel):
+    fetched: int
+    inserted: int
+    duplicate: int
+    errors: int
+    by_company: dict
+
+
+@app.post(
+    "/api/scrape/trustpilot-insurance",
+    response_model=TrustpilotInsuranceResult,
+    tags=["scraping"],
+    summary="Scrape Trustpilot reviews for EU insurance companies (Groupama, AXA, Allianz, Generali, Munich Re)",
+)
+def scrape_trustpilot_insurance(pages_per_company: int = Query(5, ge=1, le=20)):
+    """Fetch Trustpilot customer reviews for major EU insurers active in MENA/TN markets."""
+    from scrapers.trustpilot_insurance_scraper import run_trustpilot_insurance_scraper
+    return TrustpilotInsuranceResult(**run_trustpilot_insurance_scraper(pages_per_company=pages_per_company))
+
+
+# ---------------------------------------------------------------------------
+# NHTSA Complaints scraper — free, no key required
+# ---------------------------------------------------------------------------
+
+class NhtsaResult(BaseModel):
+    fetched: int
+    inserted: int
+    duplicate: int
+    skipped: int
+    errors: int
+    by_brand: Dict[str, Any]
+
+
+@app.post(
+    "/api/scrape/nhtsa-complaints",
+    response_model=NhtsaResult,
+    tags=["scraping"],
+    summary="Fetch NHTSA consumer complaints for all car brands/models (free, no key needed)",
+)
+def scrape_nhtsa_complaints(years_back: int = Query(3, ge=1, le=10)):
+    """
+    Pull real consumer complaints from the US NHTSA public API.
+    Complaints are stored as CarReview rows (verified=True, rating=null).
+    No API key required.
+    """
+    from scrapers.nhtsa_complaints_scraper import run_nhtsa_complaints_scraper
+    return NhtsaResult(**run_nhtsa_complaints_scraper(years_back=years_back))
+
+
+# ---------------------------------------------------------------------------
+# Reddit scraper — free OAuth script app
+# ---------------------------------------------------------------------------
+
+class RedditResult(BaseModel):
+    fetched: int
+    inserted: int
+    duplicate: int
+    errors: int
+
+
+@app.post(
+    "/api/scrape/reddit",
+    response_model=RedditResult,
+    tags=["scraping"],
+    summary="Scrape Reddit posts from insurance and automotive subreddits",
+)
+def scrape_reddit(
+    include_insurance: bool = Query(True),
+    include_cars: bool = Query(True),
+):
+    """
+    Fetch Reddit posts from r/Insurance, r/CarInsurance, r/cars, etc.
+    Requires REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET in .env.
+    Register free at https://www.reddit.com/prefs/apps (type: script).
+    """
+    from scrapers.reddit_scraper import run_reddit_scraper
+    result = run_reddit_scraper(include_insurance=include_insurance, include_cars=include_cars)
+    if "error" in result:
+        raise HTTPException(status_code=503, detail=result["error"])
+    return RedditResult(**result)
+
+
+# ---------------------------------------------------------------------------
+# NewsAPI scraper — free developer key
+# ---------------------------------------------------------------------------
+
+class NewsApiResult(BaseModel):
+    fetched: int
+    inserted: int
+    duplicate: int
+    errors: int
+
+
+@app.post(
+    "/api/scrape/newsapi",
+    response_model=NewsApiResult,
+    tags=["scraping"],
+    summary="Fetch news articles from NewsAPI.org for insurance and automotive topics",
+)
+def scrape_newsapi(
+    include_insurance: bool = Query(True),
+    include_cars: bool = Query(True),
+):
+    """
+    Fetch recent news from NewsAPI.org (free dev tier: 100 req/day).
+    Requires NEWS_API_KEY in .env.
+    Register free at https://newsapi.org/register.
+    """
+    from scrapers.newsapi_scraper import run_newsapi_scraper
+    result = run_newsapi_scraper(include_insurance=include_insurance, include_cars=include_cars)
+    if "error" in result:
+        raise HTTPException(status_code=503, detail=result["error"])
+    return NewsApiResult(**result)
+
+
+# ---------------------------------------------------------------------------
+# newsdata.io scraper — real-time news with free API key
+# ---------------------------------------------------------------------------
+
+class NewsdataResult(BaseModel):
+    fetched: int
+    inserted: int
+    duplicate: int
+    errors: int
+
+
+@app.post(
+    "/api/scrape/newsdata",
+    response_model=NewsdataResult,
+    tags=["scraping"],
+    summary="Fetch news articles from newsdata.io for insurance and automotive topics",
+)
+def scrape_newsdata(
+    include_insurance: bool = Query(True),
+    include_cars: bool = Query(True),
+):
+    """
+    Fetch recent news from newsdata.io (free tier: 200 credits/day, 10 results/request).
+    Requires NEWSDATA_API_KEY in .env.
+    Articles are stored as MarketTrendArticles and surface in:
+    - /api/articles (Market Pulse page)
+    - /api/company/{type}/{id}/news (Company Radar)
+    - Weekly Brief latest radar sidebar
+    """
+    from scrapers.newsdata_scraper import run_newsdata_scraper
+    result = run_newsdata_scraper(include_insurance=include_insurance, include_cars=include_cars)
+    if "error" in result:
+        raise HTTPException(status_code=503, detail=result["error"])
+    return NewsdataResult(**result)
+
+
+# ---------------------------------------------------------------------------
+# Company news feed — recent articles relevant to a company profile
+# ---------------------------------------------------------------------------
+
+class CompanyNewsItem(BaseModel):
+    id: UUID
+    title: str
+    source_url: str
+    publication_date: Optional[str]
+    category: Optional[str]
+    region: Optional[str]
+    source_name: Optional[str]
+
+
+@app.get(
+    "/api/company/{company_type}/{company_id}/news",
+    response_model=List[CompanyNewsItem],
+    tags=["company-radar"],
+    summary="Recent news articles relevant to a company profile",
+)
+def company_news(company_type: str, company_id: UUID, limit: int = Query(5, ge=1, le=20)):
+    """
+    Return the most recent scraped articles relevant to a company's sector.
+
+    Article selection strategy:
+    - PRIORITY SLOTS (up to 2): articles specifically about ERP/management systems,
+      managerial/organisational problems, or mechanical/engine issues — not just brand mentions.
+    - REMAINING SLOTS: best general brand/sector articles (name mention → recency).
+    - TN companies get TN-region articles ranked first across both pools.
+    """
+    from sqlalchemy import case, or_, and_
+
+    # Keywords that mark a "deep topic" article (ERP / org problems / mechanical)
+    TOPIC_KEYWORDS = [
+        "%erp%", "%management system%", "%fleet management%", "%leasing software%",
+        "%organizational%", "%organisational%", "%managerial%", "%operational failure%",
+        "%digital transformation%", "%process automation%", "%system integration%",
+        "%engine%", "%mechanical%", "%recall%", "%defect%", "%breakdown%",
+        "%transmission%", "%powertrain%", "%gearbox%", "%motor failure%",
+    ]
+
+    def _topic_filter():
+        return or_(
+            *[MarketTrendArticle.title.ilike(kw) for kw in TOPIC_KEYWORDS],
+            *[func.coalesce(MarketTrendArticle.body_text, "").ilike(kw) for kw in TOPIC_KEYWORDS[:10]],
+        )
+
+    with get_db_session() as session:
+        entity_name: Optional[str] = None
+        entity_region: Optional[str] = None
+
+        if company_type == "car":
+            entity = session.get(CarBrand, company_id)
+            if not entity:
+                raise HTTPException(status_code=404, detail="Car brand not found")
+            entity_name = entity.name
+            entity_region = entity.region
+            category_filter = MarketTrendArticle.category.in_(
+                ["automotive", "EV", "ERP", "InsurTech", "Keyword Search", "Technology", "Regulation", "Market"]
+            )
+        elif company_type == "insurance":
+            entity = session.get(InsuranceCompany, company_id)
+            if not entity:
+                raise HTTPException(status_code=404, detail="Insurance company not found")
+            entity_name = entity.name
+            entity_region = getattr(entity, "region", None)
+            category_filter = MarketTrendArticle.category.in_(
+                ["insurance", "Insurance", "ERP", "InsurTech", "business", "Technology", "Market"]
+            )
+        else:
+            raise HTTPException(status_code=400, detail="company_type must be 'car' or 'insurance'")
+
+        base_q = (
+            session.query(MarketTrendArticle, ReviewSource.name.label("source_name"))
+            .outerjoin(ReviewSource, MarketTrendArticle.source_id == ReviewSource.id)
+            .filter(MarketTrendArticle.data_origin == "scraped")
+        )
+
+        is_tn_company = entity_region in ("TN", "tn") if entity_region else False
+        tn_priority = case((MarketTrendArticle.region == "TN", 0), else_=1)
+
+        # ── PASS 1: semantic topic search (RAG) ───────────────────────────────
+        # Finds ERP/management/mechanical articles that are ALSO relevant to
+        # this specific brand or sector — prevents generic ERP articles from
+        # flooding slots for brands they have nothing to do with.
+        topic_rows = []
+        try:
+            import numpy as np
+            from sqlalchemy import text as _t
+
+            # Sector categories that are legitimate for this entity type
+            if company_type == "car":
+                _sector_cats = {
+                    "automotive", "EV", "ERP", "InsurTech", "Technology",
+                    "Regulation", "Market", "Keyword Search",
+                }
+                topic_query_text = (
+                    f"{entity_name} automotive fleet ERP management system "
+                    f"engine recall defect breakdown digital transformation"
+                )
+            else:
+                _sector_cats = {
+                    "insurance", "Insurance", "ERP", "InsurTech",
+                    "business", "Technology", "Market",
+                }
+                topic_query_text = (
+                    f"{entity_name} insurance claims ERP management system "
+                    f"operational difficulties digital transformation"
+                )
+
+            topic_emb = _embed_query(topic_query_text)
+            q_vec = np.array(topic_emb, dtype=np.float32)
+            brand_lower = entity_name.lower()
+
+            # Fetch scraped articles with embeddings + category + title snippet
+            fetch_sql = _t("""
+                SELECT id::text AS id, embedding,
+                       CASE WHEN region = 'TN' THEN 0 ELSE 1 END AS tn_rank,
+                       category,
+                       lower(coalesce(title,'')) AS title_lc,
+                       lower(left(coalesce(body_text,''), 400)) AS body_lc
+                FROM market_trend_articles
+                WHERE embedding IS NOT NULL AND data_origin = 'scraped'
+            """)
+            cand_rows = session.execute(fetch_sql).fetchall()
+            if cand_rows:
+                scored = []
+                for cr in cand_rows:
+                    # Only consider articles in this entity's sector OR
+                    # that explicitly mention the brand name
+                    in_sector = (cr.category or "") in _sector_cats
+                    brand_hit = brand_lower in cr.title_lc or brand_lower in cr.body_lc
+                    if not (in_sector or brand_hit):
+                        continue
+                    emb_vec = np.array(cr.embedding, dtype=np.float32)
+                    sim = float(q_vec @ emb_vec)
+                    scored.append((cr.id, sim, cr.tn_rank))
+
+                if is_tn_company:
+                    scored.sort(key=lambda x: (x[2], -x[1]))
+                else:
+                    scored.sort(key=lambda x: -x[1])
+
+                top_ids = [s[0] for s in scored[:4]]
+                if top_ids:
+                    id_to_row = {
+                        str(art.id): (art, sn)
+                        for art, sn in (
+                            base_q
+                            .filter(MarketTrendArticle.id.in_(
+                                [UUID(i) for i in top_ids]
+                            ))
+                            .all()
+                        )
+                    }
+                    topic_rows = [
+                        id_to_row[sid] for sid in top_ids if sid in id_to_row
+                    ][:2]
+        except Exception:
+            pass
+
+        # Fallback: ILIKE keyword matching if RAG returned nothing
+        if not topic_rows:
+            topic_q = base_q.filter(_topic_filter())
+            if is_tn_company:
+                topic_rows = (
+                    topic_q
+                    .order_by(tn_priority, MarketTrendArticle.publication_date.desc().nullslast())
+                    .limit(2)
+                    .all()
+                )
+            else:
+                topic_rows = (
+                    topic_q
+                    .order_by(MarketTrendArticle.publication_date.desc().nullslast())
+                    .limit(2)
+                    .all()
+                )
+
+        topic_ids = {art.id for art, _ in topic_rows}
+        topic_slots_filled = len(topic_rows)  # may be 0-2
+        remaining = limit - topic_slots_filled
+
+        # ── PASS 2: general brand/sector articles (excluding already selected) ─
+        general_q = base_q.filter(
+            category_filter,
+            ~MarketTrendArticle.id.in_(topic_ids) if topic_ids else True,
+        )
+        if entity_name:
+            name_match = case(
+                (MarketTrendArticle.title.ilike(f"%{entity_name}%"), 0),
+                else_=1,
+            )
+            if is_tn_company:
+                general_rows = (
+                    general_q
+                    .order_by(name_match, tn_priority, MarketTrendArticle.publication_date.desc().nullslast())
+                    .limit(remaining)
+                    .all()
+                )
+            else:
+                general_rows = (
+                    general_q
+                    .order_by(name_match, MarketTrendArticle.publication_date.desc().nullslast())
+                    .limit(remaining)
+                    .all()
+                )
+        else:
+            general_rows = (
+                general_q
+                .order_by(MarketTrendArticle.publication_date.desc().nullslast())
+                .limit(remaining)
+                .all()
+            )
+
+        # Topic articles first (signals), then general
+        all_rows = list(topic_rows) + list(general_rows)
+
+        return [
+            CompanyNewsItem(
+                id=art.id,
+                title=art.title,
+                source_url=art.source_url,
+                publication_date=art.publication_date.isoformat() if art.publication_date else None,
+                category=art.category,
+                region=art.region,
+                source_name=source_name,
+            )
+            for art, source_name in all_rows
+        ]
+
+
+# ---------------------------------------------------------------------------
+# ML Dimensions endpoint — scoring breakdown for visualization
+# ---------------------------------------------------------------------------
+
+class MLArticlePoint(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    title: str
+    similarity: float
+    pub_date: Optional[str]
+    category: Optional[str]
+    days_old: int
+    recency_weight: float
+
+
+class MLTrendPoint(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    period: str
+    avg_sentiment: Optional[float]
+    review_count: int
+    neg_pct: Optional[float]
+    regression_predicted: Optional[float]
+    poly_predicted: Optional[float]
+
+
+class MLSectorPeer(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    name: str
+    value: float
+    is_current: bool
+
+
+class MLDimensionsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    entity_name: str
+    entity_type: str
+    total_score: float
+    article_score: float
+    article_max: int
+    article_percentile: float
+    article_count: int
+    top_articles: List[MLArticlePoint]
+    trend_score: float
+    trend_max: int
+    trend_slope: float
+    trend_r_squared: float
+    trend_direction: str
+    trend_percentile: float
+    trend_series: List[MLTrendPoint]
+    trend_method: str
+    mk_trend: Optional[str]
+    mk_p_value: Optional[float]
+    mk_significant: bool
+    poly_acceleration: float
+    poly_concavity: str
+    trend_min_reviews: int
+    trend_months_filtered: int
+    trend_clean_r_squared: float
+    presence_score: float
+    presence_max: int
+    review_count: int
+    presence_percentile: float
+    sector_presence_peers: List[MLSectorPeer]
+    intensity_score: float
+    intensity_max: int
+    negative_pct: float
+    intensity_percentile: float
+    sector_avg_negative_pct: float
+    sector_intensity_peers: List[MLSectorPeer]
+
+
+@app.get(
+    "/api/company/{company_type}/{company_id}/ml-dimensions",
+    response_model=MLDimensionsOut,
+    tags=["company-radar"],
+    summary="ML scoring dimension breakdown for visualization",
+)
+def company_ml_dimensions(company_type: str, company_id: UUID):
+    """Return all 4 ML scoring dimensions with full data for chart rendering."""
+    entity_type_db = "insurance" if company_type == "insurance" else "brand"
+
+    with get_db_session() as session:
+        signal = (
+            session.query(OpportunitySignal)
+            .filter_by(entity_type=entity_type_db, entity_id=company_id)
+            .first()
+        )
+        if not signal:
+            raise HTTPException(
+                status_code=404,
+                detail="No ML score found. Trigger /api/opportunities/recompute first.",
+            )
+
+        r = signal.score_reasoning or {}
+        art  = r.get("article_signal", {})
+        trnd = r.get("trend", {})
+        pres = r.get("market_presence", {})
+        intn = r.get("complaint_intensity", {})
+
+        # Sector peers for distribution charts
+        peers = (
+            session.query(OpportunitySignal)
+            .filter(OpportunitySignal.entity_type == entity_type_db)
+            .all()
+        )
+
+        def _peer_review_count(p):
+            return float((p.score_reasoning or {}).get("market_presence", {}).get("review_count", 0))
+
+        def _peer_neg_pct(p):
+            return float((p.score_reasoning or {}).get("complaint_intensity", {}).get("negative_pct", 0))
+
+        presence_peers = sorted(
+            [MLSectorPeer(name=p.entity_name, value=_peer_review_count(p), is_current=str(p.entity_id) == str(company_id)) for p in peers],
+            key=lambda x: x.value, reverse=True,
+        )[:15]
+
+        intensity_peers = sorted(
+            [MLSectorPeer(name=p.entity_name, value=_peer_neg_pct(p), is_current=str(p.entity_id) == str(company_id)) for p in peers],
+            key=lambda x: x.value, reverse=True,
+        )[:15]
+
+        return MLDimensionsOut(
+            entity_name=signal.entity_name,
+            entity_type=entity_type_db,
+            total_score=float(signal.overall_score),
+            article_score=float(art.get("score", 0)),
+            article_max=35,
+            article_percentile=float(art.get("percentile", 0)),
+            article_count=int(art.get("article_count", 0)),
+            top_articles=[MLArticlePoint(**a) for a in art.get("top_articles", [])],
+            trend_score=float(trnd.get("score", 0)),
+            trend_max=25,
+            trend_slope=float(trnd.get("slope", 0)),
+            trend_r_squared=float(trnd.get("r_squared", 0)),
+            trend_direction=str(trnd.get("direction", "unknown")),
+            trend_percentile=float(trnd.get("percentile", 50)),
+            trend_series=[MLTrendPoint(**{k: p.get(k) for k in MLTrendPoint.model_fields}) for p in trnd.get("time_series", [])],
+            trend_method=str(trnd.get("method_used", "linear")),
+            mk_trend=trnd.get("mk_trend"),
+            mk_p_value=trnd.get("mk_p_value"),
+            mk_significant=bool(trnd.get("mk_significant", False)),
+            poly_acceleration=float(trnd.get("poly_acceleration", 0.0)),
+            poly_concavity=str(trnd.get("poly_concavity", "linear")),
+            trend_min_reviews=int(trnd.get("min_reviews_threshold", 3)),
+            trend_months_filtered=int(trnd.get("months_filtered", 0)),
+            trend_clean_r_squared=float(trnd.get("clean_r_squared", trnd.get("r_squared", 0.0))),
+            presence_score=float(pres.get("score", 0)),
+            presence_max=20,
+            review_count=int(pres.get("review_count", 0)),
+            presence_percentile=float(pres.get("percentile", 0)),
+            sector_presence_peers=presence_peers,
+            intensity_score=float(intn.get("score", 0)),
+            intensity_max=20,
+            negative_pct=float(intn.get("negative_pct", 0)),
+            intensity_percentile=float(intn.get("percentile", 0)),
+            sector_avg_negative_pct=float(intn.get("sector_avg_negative_pct", 0)),
+            sector_intensity_peers=intensity_peers,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Article summary endpoint (Groq-powered storytelling summary)
+# ---------------------------------------------------------------------------
+
+class ArticleSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    article_id: str
+    title: str
+    summary: str
+    source_url: str
+    publication_date: Optional[str]
+    source_name: Optional[str]
+
+
+@app.get(
+    "/api/article/{article_id}/summary",
+    response_model=ArticleSummaryOut,
+    tags=["company-radar"],
+    summary="Generate a storytelling summary of a news article using Groq",
+)
+def article_summary(article_id: UUID):
+    groq_key = os.environ.get("GROQ_API_KEY", "")
+    if not groq_key:
+        raise HTTPException(status_code=503, detail="GROQ_API_KEY not configured.")
+
+    with get_db_session() as session:
+        row = (
+            session.query(MarketTrendArticle, ReviewSource.name.label("source_name"))
+            .outerjoin(ReviewSource, MarketTrendArticle.source_id == ReviewSource.id)
+            .filter(MarketTrendArticle.id == article_id)
+            .first()
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Article not found")
+
+        art, source_name = row
+        content = _safe_str((art.body_text or "").strip())
+        title_safe = _safe_str(art.title or "")
+
+        if content:
+            prompt_body = f"Article title: {title_safe}\n\nFull article content:\n{content[:4000]}"
+        else:
+            prompt_body = f"Article title: {title_safe}"
+
+        # RAG: retrieve real customer reviews that corroborate or challenge this article's topic.
+        # This grounds the hook sentence and sales angle in actual customer language.
+        customer_voice_section = ""
+        try:
+            rag_query = f"{art.title} {(art.body_text or '')[:200]}"
+            rag_hits = _rag_retrieve(
+                query=rag_query,
+                session=session,
+                corpus="car_reviews",
+                top_k=3,
+                pool=15,
+            )
+            if rag_hits:
+                voices = []
+                for hit in rag_hits:
+                    meta = hit.get("metadata", {})
+                    rating_str = f"{meta['rating']}★" if meta.get("rating") else ""
+                    brand_str = f"{meta.get('brand','')} {meta.get('model','')}".strip()
+                    label = f"{brand_str} {rating_str}".strip()
+                    voices.append(f'- "{hit["text"][:220]}" [{label}]')
+                customer_voice_section = (
+                    "\n\nCUSTOMER VOICE — real reviews semantically matched to this article's topic "
+                    "(use these to make the hook and sales angle more concrete):\n"
+                    + "\n".join(voices)
+                )
+        except Exception:
+            pass  # additive; article body alone is still valid input
+
+    system_prompt = (
+        "You are a market intelligence writer for TEAMWILL, a B2B company selling ERP and leasing software "
+        "to car insurers and dealerships in Tunisia and Europe. "
+        "Your audience is a sales executive about to cold-call an insurance company or car dealer.\n\n"
+        "YOUR JOB: Reframe ANY article through the lens of: what does this mean for car insurance premiums, "
+        "vehicle sales, ERP adoption, or the operational health of insurers and dealerships?\n\n"
+        "OUTPUT FORMAT — follow this EXACT structure, no deviations:\n\n"
+        "Line 1 — HOOK: One punchy sentence that grabs the sales exec's attention. "
+        "Frame a risk, opportunity, or tension. Be specific and bold. "
+        "Use **double asterisks** around the key term. "
+        "Example: \u2018**ERP failures** in the insurance sector just hit a 5‑year high — is your prospect next?\u2019\n"
+        "Line 2 — Exactly the literal text: ---\n"
+        "Line 3 — Bullet with emoji \U0001F4CA: The single most striking FACT or number from the article. Bold the key figure.\n"
+        "Line 4 — Bullet with emoji \U0001F50D: The CONTEXT — why this matters for car insurance or automotive sales. Bold 1-2 terms.\n"
+        "Line 5 — Bullet with emoji \U0001F4A1: The SALES ANGLE — one concrete, quotable line the rep can say on a live call. Bold the pitch term.\n\n"
+        "RULES:\n"
+        "- Bold (**word**) the 4-6 most impactful terms across all lines: brand names, metrics, issue types, geographies.\n"
+        "- Never use generic openers like 'In today\'s market' or 'It is important'.\n"
+        "- Use exact numbers, company names, countries from the article. No vague claims.\n"
+        "- No extra lines, no headers, no markdown except **bold** and the --- separator."
+    )
+
+    user_message = _safe_str(
+        f"{prompt_body}"
+        f"{customer_voice_section}\n\n"
+        "Write the structured brief: hook line, then ---, then 3 emoji bullet points. "
+        "Bold the key figures and terms. Be sharp and specific."
+    )
+
+    client = Groq(api_key=groq_key)
+    completion = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": _safe_str(system_prompt)},
+            {"role": "user", "content": user_message},
+        ],
+        max_tokens=450,
+        temperature=0.5,   # balanced nucleus: abstractive summarization, faithful + fluent
+        top_p=0.90,        # nucleus sampling — Holtzman et al. (2020)
+    )
+    summary_text = completion.choices[0].message.content.strip()
+
+    return ArticleSummaryOut(
+        article_id=str(art.id),
+        title=art.title,
+        summary=summary_text,
+        source_url=art.source_url,
+        publication_date=art.publication_date.isoformat() if art.publication_date else None,
+        source_name=source_name,
     )
 
 
@@ -2747,7 +4354,7 @@ class RealQuote(BaseModel):
 
 
 class ScoringBreakdown(BaseModel):
-    teamwill_fit: float
+    article_signal: float
     sentiment_trend: float
     market_presence: float
     complaint_intensity: float
@@ -2913,7 +4520,7 @@ def _compute_scoring_breakdown(signal: Optional[Any]) -> Optional[ScoringBreakdo
         return None
     r = signal.score_reasoning
     return ScoringBreakdown(
-        teamwill_fit=r.get("teamwill_fit", {}).get("score", 0),
+        article_signal=r.get("article_signal", {}).get("score", r.get("teamwill_fit", {}).get("score", 0)),
         sentiment_trend=r.get("trend", {}).get("score", 0),
         market_presence=r.get("market_presence", {}).get("score", 0),
         complaint_intensity=r.get("complaint_intensity", {}).get("score", 0),
