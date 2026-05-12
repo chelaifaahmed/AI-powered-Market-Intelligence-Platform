@@ -506,15 +506,13 @@ export default function FieldIntel() {
     <div style={{ padding: "28px 32px", minHeight: "100vh", backgroundColor: "#0A0F1E" }}>
 
       {/* ── Stats bar ───────────────────────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 28 }}>
         <StatPill label="Market Articles" value={lstSummary ? totalArticles || "—" : "—"} color="#6366f1" />
         <StatPill label="Insurance Articles" value={insuranceArticles || "—"} color="#818CF8" />
-        <StatPill label="TN Car Prices" value={tnListings || "—"} color="#FBBF24" />
-        <StatPill label="EU Listings" value={lstSummary?.total != null ? (lstSummary.total - tnListings) : "—"} color="#10B981" />
       </div>
 
-      {/* ── Two-column layout ───────────────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 24, alignItems: "start" }}>
+      {/* ── Single-column layout ───────────────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24, alignItems: "start" }}>
 
         {/* ── LEFT: Market News ───────────────────────────────────────────── */}
         <div>
@@ -633,7 +631,8 @@ export default function FieldIntel() {
           </div>
         </div>
 
-        {/* ── RIGHT: Pricing Reference ────────────────────────────────────── */}
+        {/* ── RIGHT: Pricing Reference (Masked) ────────────────────────────────────── */}
+        {false && (
         <div style={{ position: "sticky", top: 16 }}>
           <div style={{
             background: "#0D1424", border: "1px solid #1F2937", borderRadius: 14, padding: "20px 20px 16px",
@@ -767,6 +766,7 @@ export default function FieldIntel() {
             )}
           </div>
         </div>
+        )}
 
       </div>
 

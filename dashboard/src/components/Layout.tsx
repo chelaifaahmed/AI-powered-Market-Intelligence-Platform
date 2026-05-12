@@ -14,7 +14,7 @@ import LiveIndicator from "./LiveIndicator";
 const API = import.meta.env.VITE_API_URL || "";
 
 const mainNav = [
-  { to: "/", label: "Weekly Brief", icon: LayoutDashboard },
+  { to: "/", label: "Intelligence Brief", icon: LayoutDashboard },
   { to: "/company", label: "Company Radar", icon: Building2 },
   { to: "/field-intel", label: "Field Intel", icon: Telescope },
   { to: "/market", label: "Market Pulse", icon: TrendingUp },
@@ -22,7 +22,7 @@ const mainNav = [
 ];
 
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
-  "/": { title: "Weekly Brief", subtitle: "Executive summary & key signals" },
+  "/": { title: "Intelligence Brief", subtitle: "Executive summary & key signals" },
   "/company": { title: "Company Radar", subtitle: "Track companies, clusters & ERP signals" },
   "/field-intel": { title: "Field Intel", subtitle: "Market news & pricing data for your sales & prospection calls" },
   "/market": { title: "Market Pulse", subtitle: "Operational health & top-level intelligence signals" },
@@ -56,7 +56,7 @@ export default function Layout() {
       ? oppSummary.strong_signals + oppSummary.moderate_signals
       : null;
 
-  // Hide topbar on Weekly Brief — it has its own header
+  // Hide topbar on Intelligence Brief — it has its own header
   const hideTopbar = path === "/";
 
   return (
@@ -169,7 +169,7 @@ export default function Layout() {
 
       {/* ─── Main content ─── */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Topbar — hidden on Weekly Brief */}
+        {/* Topbar — hidden on Intelligence Brief */}
         {!hideTopbar && (
           <header
             className="flex-shrink-0 flex items-center justify-between sticky top-0 z-30"

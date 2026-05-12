@@ -292,16 +292,16 @@ interface ArticlesResponse {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getWeekRange(): string {
+function getCurrentDateTime(): string {
   const now = new Date();
-  const day = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `Week of ${fmt(monday)} — ${fmt(sunday)}`;
+  return now.toLocaleString("en-US", { 
+    month: "short", 
+    day: "numeric", 
+    year: "numeric", 
+    hour: "numeric", 
+    minute: "2-digit",
+    hour12: true
+  });
 }
 
 function getScoreColor(score: number): string {
@@ -448,14 +448,14 @@ export default function WeeklyBrief() {
               color: "#F9FAFB", margin: 0, lineHeight: 1.2,
               letterSpacing: "-0.5px"
             }}>
-              Weekly Brief
+              Intelligence Brief
             </h1>
             <div style={{ 
               fontSize: 14, color: "#9CA3AF", fontWeight: 500, 
               fontFamily: "'DM Sans', sans-serif", marginTop: 6, letterSpacing: "1px",
               textTransform: "uppercase"
             }}>
-              {getWeekRange()}
+              {getCurrentDateTime()}
             </div>
           </div>
           
