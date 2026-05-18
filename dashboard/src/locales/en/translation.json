@@ -1,0 +1,39 @@
+{
+  "header": {
+    "title": "Market Opportunities & Prospection Platform",
+    "subtitle": "Market Positioning & Deals",
+    "logout": "Logout",
+    "language": "Language",
+    "en": "English",
+    "fr": "French"
+  },
+  "dashboard": {
+    "kpi_competitors": "Tracked Competitors",
+    "kpi_threats": "Direct Threats",
+    "matrix_title": "Competitive Positioning Matrix",
+    "radar_title": "ERP Ecosystem Competency Radar",
+    "battlecard_btn": "Generate Win Strategy"
+  },
+  "nav": {
+    "alpha_drop": "Alpha Drop",
+    "prospect_strategy": "Prospect Strategy",
+    "distress_radar": "Distress Radar",
+    "field_intel": "Field Intel",
+    "deal_intel": "Deal Positioning",
+    "scraping_stats": "Scraping Stats",
+    "ai_analyst": "AI Analyst",
+    "admin": "Admin",
+    "version": "v2.0 · Real data only",
+    "market_intel": "Market & Prospection"
+  },
+  "pages": {
+    "accueil": { "title": "Alpha Drop", "subtitle": "Vibe check · Real-time tea · Alpha signals" },
+    "company": { "title": "Distress Radar", "subtitle": "Track companies, clusters & ERP signals" },
+    "company-intelligence": { "title": "Prospect Strategy", "subtitle": "Entity state, hiring signals, intervention depth & outreach timing" },
+    "field-intel": { "title": "Field Intel", "subtitle": "Market news & pricing data for your sales & prospection calls" },
+    "deal-intelligence": { "title": "Market Positioning & Deals", "subtitle": "Strategic Deal-Win Architecture" },
+    "market": { "title": "Scraping Stats", "subtitle": "Operational health & top-level market signals" },
+    "analyst": { "title": "AI Analyst", "subtitle": "Chat with your data using Claude AI" },
+    "admin": { "title": "Admin", "subtitle": "Operations, sources & system management" }
+  }
+}

@@ -152,14 +152,8 @@ def _get_or_create_source(session):
     return source
 
 
-def _infer_category(subreddit: str, query: str) -> str:
-    s = subreddit.lower()
-    q = query.lower()
-    if "insurance" in s or "insurance" in q:
-        return "Insurance"
-    if "ev" in s or "electric" in q:
-        return "EV"
-    return "Automotive"
+def _infer_category(_subreddit: str, _query: str) -> str:
+    return "forum"
 
 
 def _insert_post(session, post: Dict, source_id, category: str) -> bool:

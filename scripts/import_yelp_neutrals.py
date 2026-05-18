@@ -69,7 +69,7 @@ def _get_generic_model_id(session) -> str:
     vals = ["gen_random_uuid()", f"'{brand_id}'", "'Generic / Dealership'", "true", "NOW()", "NOW()"]
     if "data_origin" in col_names:
         fields.append("data_origin")
-        vals.append("'seeded'")
+        vals.append("'reference'")
     sql = f"INSERT INTO car_models ({', '.join(fields)}) VALUES ({', '.join(vals)}) RETURNING id"
     result = session.execute(text(sql))
     session.commit()

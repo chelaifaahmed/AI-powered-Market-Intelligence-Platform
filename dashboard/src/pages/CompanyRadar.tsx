@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -40,37 +40,137 @@ const API = import.meta.env.VITE_API_URL || "";
 // ─── CSS ─────────────────────────────────────────────────────────────────────
 
 const STYLES = `
-  @keyframes cr-shimmer { 0%,100% { opacity: 0.4; } 50% { opacity: 0.8; } }
-  @keyframes cr-fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .cr-skel { background: #1F2937; border-radius: 4px; animation: cr-shimmer 1.5s ease-in-out infinite; }
-  .cr-section { opacity: 0; animation: cr-fade-in 250ms ease-out forwards; }
-  .cr-search-input { background: #111827; border: 1px solid #1F2937; color: #F9FAFB; padding: 14px 20px 14px 48px;
-    border-radius: 10px; font-size: 15px; width: 100%; outline: none; font-family: 'DM Sans', sans-serif;
-    transition: border-color 150ms ease; }
-  .cr-search-input:focus { border-color: #6366f1; }
+  @keyframes cr-shimmer { 0%,100% { opacity: 0.3; } 50% { opacity: 0.7; } }
+  @keyframes cr-fade-in { 
+    from { opacity: 0; transform: translateY(24px) scale(0.98); } 
+    to { opacity: 1; transform: translateY(0) scale(1); } 
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(-10px) rotate(1deg); }
+  }
+  @keyframes bg-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  @keyframes orb-move-1 {
+    0%, 100% { transform: translate(0px, 0px) scale(1); }
+    33% { transform: translate(50px, -80px) scale(1.1); }
+    66% { transform: translate(-30px, 30px) scale(0.95); }
+  }
+  @keyframes orb-move-2 {
+    0%, 100% { transform: translate(0px, 0px) scale(1); }
+    50% { transform: translate(-60px, 60px) scale(1.15); }
+  }
+  
+  .cr-skel { background: rgba(255, 255, 255, 0.05); border-radius: 8px; animation: cr-shimmer 1.5s ease-in-out infinite; }
+  
+  .cr-section { 
+    opacity: 0; 
+    animation: cr-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+  }
+  
+  .cr-search-input { 
+    background: rgba(30, 41, 59, 0.45) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    backdrop-filter: blur(12px);
+    color: #F9FAFB; 
+    padding: 14px 20px 14px 48px;
+    border-radius: 16px; 
+    font-size: 15px; 
+    width: 100%; 
+    outline: none; 
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); 
+  }
+  .cr-search-input:focus { 
+    border-color: rgba(167, 139, 250, 0.6) !important;
+    box-shadow: 0 0 20px rgba(167, 139, 250, 0.2), inset 0 0 10px rgba(167, 139, 250, 0.05) !important;
+    background: rgba(30, 41, 59, 0.6) !important;
+  }
   .cr-search-input::placeholder { color: #6B7280; }
-  .cr-dropdown-item { padding: 10px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px;
-    transition: background-color 150ms ease; }
-  .cr-dropdown-item:hover { background-color: #1F2937; }
-  .cr-card { background: #111827; border: 1px solid #1F2937; border-radius: 10px; padding: 20px;
-    transition: border-color 150ms ease; }
-  .cr-card:hover { border-color: #374151; }
-  .cr-news-item { cursor: pointer; transition: border-color 150ms ease, background 150ms ease; }
-  .cr-news-item:hover { border-color: #6366f1 !important; background: #131929 !important; }
-  @keyframes cr-modal-in { from { opacity: 0; transform: scale(0.97) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-  .cr-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px);
-    display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
-  .cr-modal { background: #0D1117; border: 1px solid #1F2937; border-radius: 14px; max-width: 560px; width: 100%;
-    padding: 28px; animation: cr-modal-in 220ms ease-out; position: relative; }
-  .cr-modal-summary { font-size: 14px; line-height: 1.75; color: #D1D5DB; font-style: italic;
-    border-left: 3px solid #6366f1; padding-left: 16px; margin: 16px 0; }
-  .cr-modal-read-btn { display: flex; align-items: center; gap: 8px; background: #6366f1; color: #fff;
-    border: none; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 600;
-    cursor: pointer; transition: background 150ms ease; text-decoration: none; }
-  .cr-modal-read-btn:hover { background: #4F46E5; }
+  
+  .cr-dropdown-item { 
+    padding: 12px 18px; 
+    cursor: pointer; 
+    display: flex; 
+    align-items: center; 
+    gap: 12px;
+    transition: all 0.2s ease; 
+  }
+  .cr-dropdown-item:hover { 
+    background-color: rgba(167, 139, 250, 0.08); 
+  }
+  
+  .cr-card { 
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.01);
+    border-radius: 20px; 
+    padding: 24px;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); 
+  }
+  .cr-card:hover { 
+    border-color: rgba(167, 139, 250, 0.25);
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.4), 0 0 25px rgba(99, 102, 241, 0.08);
+  }
+  
+  .cr-news-item { 
+    cursor: pointer; 
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); 
+  }
+  .cr-news-item:hover { 
+    border-color: rgba(167, 139, 250, 0.4) !important; 
+    background: rgba(167, 139, 250, 0.06) !important; 
+    transform: translateX(4px);
+  }
+  
+  @keyframes cr-modal-in { 
+    from { opacity: 0; transform: scale(0.95) translateY(16px); } 
+    to { opacity: 1; transform: scale(1) translateY(0); } 
+  }
+  .cr-modal-overlay { 
+    position: fixed; inset: 0; 
+    background: rgba(2, 6, 23, 0.75); 
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px; 
+  }
+  .cr-modal { 
+    background: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(28px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px; 
+    max-width: 580px; 
+    width: 100%;
+    padding: 32px; 
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.02);
+    animation: cr-modal-in 0.35s cubic-bezier(0.16, 1, 0.3, 1); 
+    position: relative; 
+  }
+  .cr-modal-summary { 
+    font-size: 14px; line-height: 1.75; color: #D1D5DB; font-style: italic;
+    border-left: 3px solid #8B5CF6; padding-left: 16px; margin: 16px 0; 
+  }
+  .cr-modal-read-btn { 
+    display: flex; align-items: center; gap: 8px; 
+    background: linear-gradient(135deg, #6366F1 0%, #A78BFA 100%);
+    color: #fff;
+    border: none; border-radius: 12px; padding: 10px 20px; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: all 0.3s ease; text-decoration: none; 
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
+  }
+  .cr-modal-read-btn:hover { 
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+  }
+  
   @keyframes cr-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
   .cr-summary-loading { display: flex; align-items: center; gap: 8px; color: #6B7280; font-size: 13px; padding: 12px 0; }
-  .cr-summary-loading-dot { width: 6px; height: 6px; border-radius: 50%; background: #6366f1; animation: cr-pulse 1.2s ease-in-out infinite; }
+  .cr-summary-loading-dot { width: 6px; height: 6px; border-radius: 50%; background: #A78BFA; animation: cr-pulse 1.2s ease-in-out infinite; }
   .cr-summary-loading-dot:nth-child(2) { animation-delay: 0.2s; }
   .cr-summary-loading-dot:nth-child(3) { animation-delay: 0.4s; }
 `;
@@ -85,6 +185,20 @@ interface SearchResult {
   region: string | null;
   score: number | null;
   data_origin: string | null;
+}
+
+interface DistressEntry {
+  entity_id: string;
+  entity_name: string;
+  entity_type: string;
+  region: string | null;
+  overall_score: number;
+  complaint_score: number;
+  sentiment_drop_score: number;
+  review_volume_score: number;
+  signal_strength: string;
+  top_complaint_types: string[];
+  sector_percentile: number | null;
 }
 
 interface ComplaintItem {
@@ -224,16 +338,16 @@ interface CompanyProfile {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getScoreColor(score: number | null): string {
-  if (score == null) return "#3B82F6";
-  if (score > 80) return "#EF4444";
+  if (score == null) return "#60A5FA";
+  if (score > 80) return "#F43F5E";
   if (score >= 65) return "#F59E0B";
-  return "#3B82F6";
+  return "#60A5FA";
 }
 
 function getSentimentLabel(negPct: number): { label: string; color: string } {
-  if (negPct > 65) return { label: "CRITICAL", color: "#EF4444" };
+  if (negPct > 65) return { label: "CRITICAL", color: "#F43F5E" };
   if (negPct > 40) return { label: "DECLINING", color: "#F59E0B" };
-  return { label: "STABLE", color: "#10B981" };
+  return { label: "STABLE", color: "#34D399" };
 }
 
 function formatMonth(m: string): string {
@@ -292,6 +406,7 @@ export default function CompanyRadar() {
   const [articleModal, setArticleModal] = useState<{ item: CompanyNewsItem } | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const profileRef = useRef<HTMLDivElement>(null);
 
   // Inject styles
   useEffect(() => {
@@ -333,6 +448,13 @@ export default function CompanyRadar() {
       else setShowDropdown(false);
     }, 300);
   }, []);
+
+  // Top distress leaderboard
+  const { data: topDistress, isLoading: distressLoading } = useQuery<DistressEntry[]>({
+    queryKey: ["top-distress"],
+    queryFn: () => fetch(`${API}/api/opportunities`).then(r => r.json()),
+    staleTime: 30000,
+  });
 
   // Search query
   const { data: searchResults, isLoading: searchLoading } = useQuery<SearchResult[]>({
@@ -396,18 +518,51 @@ export default function CompanyRadar() {
     setShowDropdown(false);
   };
 
+  const selectFromLeaderboard = useCallback((entry: DistressEntry) => {
+    setSelectedCompany({ type: entry.entity_type === "brand" ? "car" : "insurance", id: entry.entity_id });
+    setQuery(entry.entity_name);
+    setShowDropdown(false);
+    setTimeout(() => {
+      profileRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  }, []);
+
   const sentimentInfo = profile ? getSentimentLabel(profile.negative_pct) : null;
   const scoreColor = profile ? getScoreColor(profile.score) : "#3B82F6";
 
   return (
-    <div style={{ padding: "0 32px 48px", maxWidth: 1200, margin: "0 auto" }}>
+    <div style={{ padding: "0 32px 48px", maxWidth: 1200, margin: "0 auto", position: "relative", zIndex: 1 }}>
+      
+      {/* Glowing Neon Orbs that move in background */}
+      <div style={{
+        position: "absolute",
+        width: "600px", height: "600px",
+        borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(167,139,250,0.05) 0%, rgba(167,139,250,0) 70%)",
+        top: "-10%", left: "-10%",
+        animation: "orb-move-1 30s infinite ease-in-out",
+        filter: "blur(80px)",
+        pointerEvents: "none",
+        zIndex: -1
+      }} />
+      <div style={{
+        position: "absolute",
+        width: "500px", height: "500px",
+        borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(244,63,94,0.03) 0%, rgba(244,63,94,0) 70%)",
+        bottom: "10%", right: "-10%",
+        animation: "orb-move-2 25s infinite ease-in-out",
+        filter: "blur(80px)",
+        pointerEvents: "none",
+        zIndex: -1
+      }} />
 
       {/* ═══ A. SEARCH BAR HERO ═══ */}
       <div
         ref={searchRef}
         style={{
           position: "sticky", top: 0, zIndex: 40,
-          backgroundColor: "#0A0F1E", paddingTop: 28, paddingBottom: 16,
+          backgroundColor: "transparent", paddingTop: 28, paddingBottom: 16,
         }}
       >
         <div style={{ position: "relative" }}>
@@ -447,8 +602,8 @@ export default function CompanyRadar() {
                       <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                         <span style={{
                           fontSize: 10, fontWeight: 500, padding: "1px 6px", borderRadius: 9999,
-                          backgroundColor: r.type === "insurance" ? "#1e3a5f" : "#1c3320",
-                          color: r.type === "insurance" ? "#60a5fa" : "#4ade80",
+                          backgroundColor: r.type === "insurance" ? "rgba(96, 165, 250, 0.15)" : "rgba(52, 211, 153, 0.15)",
+                          color: r.type === "insurance" ? "#60a5fa" : "#34d399",
                         }}>
                           {r.sector}
                         </span>
@@ -512,7 +667,22 @@ export default function CompanyRadar() {
       )}
 
       {profile && !profileLoading && (
-        <div>
+        <div ref={profileRef}>
+          {/* Back to rankings */}
+          <button
+            onClick={() => { setSelectedCompany(null); setQuery(""); }}
+            style={{
+              background: "transparent", border: "none", color: "#6B7280",
+              fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+              padding: "8px 0 16px", fontFamily: "'DM Sans', sans-serif",
+              transition: "color 150ms",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#9CA3AF"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "#6B7280"; }}
+          >
+            <span style={{ fontSize: 14 }}>&#8592;</span> Back to rankings
+          </button>
+
           {/* ═══ B. COMPANY HEADER ═══ */}
           <div className="cr-section" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: 8, marginBottom: 24, animationDelay: "0ms" }}>
             <div>
@@ -521,19 +691,19 @@ export default function CompanyRadar() {
               </h1>
               {/* Badges */}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 8px", borderRadius: 9999, backgroundColor: "#0c1f3d", color: "#3B82F6" }}>
+                <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 8px", borderRadius: 9999, backgroundColor: "rgba(96, 165, 250, 0.15)", color: "#60A5FA" }}>
                   {profile.sector}
                 </span>
                 {profile.region && (
-                  <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 8px", borderRadius: 9999, backgroundColor: "#1f2937", color: "#9ca3af" }}>
+                  <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 8px", borderRadius: 9999, backgroundColor: "rgba(255,255,255,0.05)", color: "#9ca3af" }}>
                     {profile.region}
                   </span>
                 )}
                 <span style={{
                   fontSize: 9, fontWeight: 600, padding: "2px 8px", borderRadius: 9999,
                   letterSpacing: "0.1em", textTransform: "uppercase",
-                  backgroundColor: profile.data_origin === "analyst" ? "#2e1065" : "#052e16",
-                  color: profile.data_origin === "analyst" ? "#8B5CF6" : "#10B981",
+                  backgroundColor: profile.data_origin === "analyst" ? "rgba(139, 92, 246, 0.15)" : "rgba(52, 211, 153, 0.15)",
+                  color: profile.data_origin === "analyst" ? "#A78BFA" : "#34D399",
                 }}>
                   {profile.data_origin === "analyst" ? "ANALYST SIGNAL" : "VERIFIED DATA"}
                 </span>
@@ -541,9 +711,9 @@ export default function CompanyRadar() {
                 <span style={{
                   fontSize: 9, fontWeight: 600, padding: "2px 8px", borderRadius: 9999,
                   letterSpacing: "0.1em", textTransform: "uppercase",
-                  backgroundColor: profile.prospect_type === "NO_ERP" ? "#450a0a"
-                    : profile.prospect_type === "ERP_FAILING" ? "#451a03" : "#431407",
-                  color: profile.prospect_type === "NO_ERP" ? "#EF4444"
+                  backgroundColor: profile.prospect_type === "NO_ERP" ? "rgba(244, 63, 94, 0.15)"
+                    : profile.prospect_type === "ERP_FAILING" ? "rgba(245, 158, 11, 0.15)" : "rgba(249, 115, 22, 0.15)",
+                  color: profile.prospect_type === "NO_ERP" ? "#F43F5E"
                     : profile.prospect_type === "ERP_FAILING" ? "#F59E0B" : "#F97316",
                 }}>
                   {profile.prospect_type === "NO_ERP" ? "NO ERP DETECTED"
@@ -593,18 +763,18 @@ export default function CompanyRadar() {
             style={{
               animationDelay: "50ms",
               padding: "16px 20px",
-              borderRadius: 10,
+              borderRadius: 12,
               marginBottom: 20,
-              backgroundColor: (profile.score ?? 0) > 80 ? "#450a0a" : "#451a03",
-              border: `1px solid ${(profile.score ?? 0) > 80 ? "#991b1b" : "#92400e"}`,
+              backgroundColor: (profile.score ?? 0) > 80 ? "rgba(244, 63, 94, 0.08)" : "rgba(245, 158, 11, 0.08)",
+              border: `1px solid ${(profile.score ?? 0) > 80 ? "rgba(244, 63, 94, 0.25)" : "rgba(245, 158, 11, 0.25)"}`,
               display: "flex", alignItems: "flex-start", gap: 12,
             }}
           >
-            <AlertTriangle size={20} style={{ color: (profile.score ?? 0) > 80 ? "#EF4444" : "#F59E0B", flexShrink: 0, marginTop: 2 }} />
+            <AlertTriangle size={20} style={{ color: (profile.score ?? 0) > 80 ? "#F43F5E" : "#F59E0B", flexShrink: 0, marginTop: 2 }} />
             <div>
               <div style={{
                 fontSize: 10, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase",
-                color: (profile.score ?? 0) > 80 ? "#EF4444" : "#F59E0B",
+                color: (profile.score ?? 0) > 80 ? "#F43F5E" : "#FBBF24",
                 marginBottom: 6,
               }}>
                 WHY TEAMWILL SHOULD CALL NOW
@@ -634,8 +804,8 @@ export default function CompanyRadar() {
                     <span style={{ fontSize: 12, color: "#9CA3AF" }}>Negative %</span>
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#F9FAFB" }}>{profile.negative_pct.toFixed(1)}%</span>
                   </div>
-                  <div style={{ height: 4, backgroundColor: "#1F2937", borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${Math.min(profile.negative_pct, 100)}%`, backgroundColor: "#EF4444", borderRadius: 2 }} />
+                  <div style={{ height: 4, backgroundColor: "rgba(255, 255, 255, 0.05)", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${Math.min(profile.negative_pct, 100)}%`, backgroundColor: "#F43F5E", borderRadius: 2 }} />
                   </div>
                 </div>
                 <div>
@@ -673,7 +843,7 @@ export default function CompanyRadar() {
               {profile.sentiment_trend.length > 1 ? (
                 <>
                   {profile.negative_pct > 40 && (
-                    <div style={{ fontSize: 10, color: "#EF4444", marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: "#F43F5E", marginBottom: 8 }}>
                       ▼ Declining
                     </div>
                   )}
@@ -681,20 +851,20 @@ export default function CompanyRadar() {
                     <AreaChart data={[...profile.sentiment_trend].reverse()} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
                       <defs>
                         <linearGradient id="negFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#EF4444" stopOpacity={0.2} />
-                          <stop offset="100%" stopColor="#EF4444" stopOpacity={0} />
+                          <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.2} />
+                          <stop offset="100%" stopColor="#F43F5E" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6B7280", fontFamily: "DM Sans" }} tickFormatter={formatMonth} axisLine={false} tickLine={false} />
                       <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#6B7280", fontFamily: "JetBrains Mono" }} axisLine={false} tickLine={false} />
                       <Tooltip
-                        contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: 8, fontSize: 13 }}
+                        contentStyle={{ backgroundColor: "rgba(15, 23, 42, 0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, fontSize: 13 }}
                         labelStyle={{ color: "#9CA3AF" }}
-                        itemStyle={{ color: "#EF4444" }}
+                        itemStyle={{ color: "#F43F5E" }}
                         formatter={(v: number) => [`${v.toFixed(1)}%`, "Negative"]}
                         labelFormatter={formatMonth}
                       />
-                      <Area type="monotone" dataKey="negative_pct" stroke="#EF4444" strokeWidth={2} fill="url(#negFill)" />
+                      <Area type="monotone" dataKey="negative_pct" stroke="#F43F5E" strokeWidth={2} fill="url(#negFill)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </>
@@ -722,8 +892,8 @@ export default function CompanyRadar() {
                       <span style={{ fontSize: 13, fontWeight: 500, color: "#F9FAFB" }}>{c.label}</span>
                       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: "#F9FAFB" }}>{c.pct.toFixed(1)}%</span>
                     </div>
-                    <div style={{ height: 6, backgroundColor: "#1F2937", borderRadius: 3, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${Math.min(c.pct, 100)}%`, backgroundColor: "#EF4444", borderRadius: 3 }} />
+                    <div style={{ height: 6, backgroundColor: "rgba(255, 255, 255, 0.05)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${Math.min(c.pct, 100)}%`, backgroundColor: "#F43F5E", borderRadius: 3 }} />
                     </div>
                     <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4, fontStyle: "italic" }}>
                       → {getComplaintSalesTip(c.label)}
@@ -811,8 +981,8 @@ export default function CompanyRadar() {
                         <span style={{ fontSize: 11, color: "#6B7280" }}>{formatDate(q.date)}</span>
                       )}
                       <span style={{
-                        fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 9999,
-                        backgroundColor: "#450a0a", color: "#EF4444",
+                        fontSize: 9, fontWeight: 600, padding: "1.5px 7px", borderRadius: 9999,
+                        backgroundColor: "rgba(244, 63, 94, 0.12)", color: "#F43F5E",
                       }}>
                         NEGATIVE
                       </span>
@@ -939,17 +1109,23 @@ export default function CompanyRadar() {
         </div>
       )}
 
-      {/* Empty state — no company selected */}
+      {/* Leaderboard — shown when no company is selected */}
       {!selectedCompany && !profileLoading && (
-        <div style={{ textAlign: "center", marginTop: 80 }}>
-          <Search size={40} style={{ color: "#374151", margin: "0 auto 16px" }} />
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 24, color: "#F9FAFB", marginBottom: 8 }}>
-            Company Radar
-          </div>
-          <div style={{ fontSize: 14, color: "#6B7280", maxWidth: 400, margin: "0 auto", lineHeight: 1.6 }}>
-            Search any company to get a complete pre-call sales intelligence dossier.
-            Everything you need before picking up the phone.
-          </div>
+        <div>
+          {distressLoading ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="cr-skel" style={{ height: 52, borderRadius: 8 }} />
+              ))}
+            </div>
+          ) : topDistress && topDistress.length > 0 ? (
+            <TopDistressLeaderboard entries={topDistress.slice(0, 20)} onSelect={selectFromLeaderboard} />
+          ) : (
+            <div style={{ textAlign: "center", marginTop: 80 }}>
+              <Search size={40} style={{ color: "#374151", margin: "0 auto 16px" }} />
+              <div style={{ fontSize: 14, color: "#6B7280" }}>No distress signals found.</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1126,7 +1302,7 @@ function ProspectDiagnosis({ type }: { type: string }) {
   if (type === "NO_ERP") {
     return (
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-        <AlertCircle size={24} style={{ color: "#EF4444", flexShrink: 0, marginTop: 2 }} />
+        <AlertCircle size={24} style={{ color: "#F43F5E", flexShrink: 0, marginTop: 2 }} />
         <div>
           <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#F9FAFB", marginBottom: 6 }}>
             No ERP System Detected
@@ -1143,7 +1319,7 @@ function ProspectDiagnosis({ type }: { type: string }) {
   if (type === "ERP_FAILING") {
     return (
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-        <TrendingDown size={24} style={{ color: "#F59E0B", flexShrink: 0, marginTop: 2 }} />
+        <TrendingDown size={24} style={{ color: "#FBBF24", flexShrink: 0, marginTop: 2 }} />
         <div>
           <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#F9FAFB", marginBottom: 6 }}>
             ERP System Underperforming
@@ -1182,8 +1358,8 @@ function StarsDisplay({ rating, size = 14 }: { rating: number | null; size?: num
         <Star
           key={i}
           size={size}
-          fill={i <= filled ? "#F59E0B" : "transparent"}
-          style={{ color: i <= filled ? "#F59E0B" : "#374151" }}
+          fill={i <= filled ? "#FBBF24" : "transparent"}
+          style={{ color: i <= filled ? "#FBBF24" : "rgba(255,255,255,0.08)" }}
         />
       ))}
     </span>
@@ -1193,10 +1369,10 @@ function StarsDisplay({ rating, size = 14 }: { rating: number | null; size?: num
 // ─── ML Dimensions Panel ─────────────────────────────────────────────────────
 
 const DIRECTION_COLOR: Record<string, string> = {
-  declining_fast: "#EF4444",
-  declining: "#F59E0B",
+  declining_fast: "#F43F5E",
+  declining: "#FBBF24",
   stable: "#6B7280",
-  improving: "#10B981",
+  improving: "#34D399",
 };
 
 function DimHeader({ title, score, max, percentile, color }: { title: string; score: number; max: number; percentile: number; color: string }) {
@@ -1268,23 +1444,23 @@ function MLDimensionsPanel({ ml }: { ml: MLDimensions }) {
                 />
                 <ZAxis dataKey="z" range={[40, 220]} name="Recency %" />
                 <Tooltip
-                  contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: 8, fontSize: 12 }}
-                  cursor={{ strokeDasharray: "3 3", stroke: "#374151" }}
+                  contentStyle={{ backgroundColor: "rgba(15, 23, 42, 0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, fontSize: 12 }}
+                  cursor={{ strokeDasharray: "3 3", stroke: "rgba(255,255,255,0.08)" }}
                   content={({ payload }) => {
                     if (!payload?.length) return null;
                     const d = payload[0].payload as typeof articleScatter[0];
                     return (
-                      <div style={{ background: "#111827", border: "1px solid #374151", borderRadius: 8, padding: "8px 12px", maxWidth: 220 }}>
+                      <div style={{ background: "rgba(15, 23, 42, 0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "8px 12px", maxWidth: 220 }}>
                         <div style={{ fontSize: 11, color: "#F9FAFB", fontWeight: 600, marginBottom: 4 }}>{d.label}…</div>
                         <div style={{ fontSize: 10, color: "#9CA3AF" }}>Similarity: {(d.y * 100).toFixed(1)}%</div>
                         <div style={{ fontSize: 10, color: "#9CA3AF" }}>Age: {d.x} days · Recency: {d.z}%</div>
-                        {d.cat && <div style={{ fontSize: 10, color: "#6366F1", marginTop: 2 }}>{d.cat}</div>}
+                        {d.cat && <div style={{ fontSize: 10, color: "#A78BFA", marginTop: 2 }}>{d.cat}</div>}
                       </div>
                     );
                   }}
                 />
                 <Scatter data={articleScatter} fill="#6366F1" fillOpacity={0.8} />
-                <ReferenceLine y={0.5} stroke="#374151" strokeDasharray="4 4" label={{ value: "0.5 threshold", fontSize: 9, fill: "#4B5563", position: "right" }} />
+                <ReferenceLine y={0.5} stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" label={{ value: "0.5 threshold", fontSize: 9, fill: "#4B5563", position: "right" }} />
               </ScatterChart>
             </ResponsiveContainer>
           ) : (
@@ -1367,14 +1543,14 @@ function MLDimensionsPanel({ ml }: { ml: MLDimensions }) {
           {/* ── Poly acceleration insight ── */}
           {ml.poly_concavity !== "linear" && (
             <div style={{
-              background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)",
+              background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.15)",
               borderRadius: 8, padding: "7px 12px", marginBottom: 10, fontSize: 10, color: "#D1D5DB", lineHeight: 1.6,
             }}>
-              <span style={{ color: "#10B981", fontWeight: 700 }}>Polynomial degree-2 curvature detected:</span>
+              <span style={{ color: "#34D399", fontWeight: 700 }}>Polynomial degree-2 curvature detected:</span>
               {" "}{ml.poly_concavity === "accelerating_decline"
                 ? "⬇ The proportion of negative reviews is growing faster over time — complaints are accelerating. Urgent intervention window."
                 : "⬆ The growth in negative reviews is slowing down — sentiment may be stabilising or recovering. Monitor closely."}
-              {" "}Acceleration coefficient: <span style={{ fontFamily: "'JetBrains Mono', monospace", color: ml.poly_acceleration < 0 ? "#EF4444" : "#10B981" }}>
+              {" "}Acceleration coefficient: <span style={{ fontFamily: "'JetBrains Mono', monospace", color: ml.poly_acceleration < 0 ? "#F43F5E" : "#34D399" }}>
                 {ml.poly_acceleration > 0 ? "+" : ""}{ml.poly_acceleration.toFixed(6)}
               </span>
             </div>
@@ -1396,14 +1572,14 @@ function MLDimensionsPanel({ ml }: { ml: MLDimensions }) {
                     <XAxis dataKey="period" tick={{ fontSize: 9, fill: "#6B7280" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis domain={[-1, 1]} tick={{ fontSize: 9, fill: "#6B7280" }} axisLine={false} tickLine={false} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: 8, fontSize: 11 }}
+                      contentStyle={{ backgroundColor: "rgba(15, 23, 42, 0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, fontSize: 11 }}
                       labelStyle={{ color: "#9CA3AF" }}
                       formatter={(v: number, name: string) => [
                         typeof v === "number" ? v.toFixed(4) : v,
                         name === "avg_sentiment" ? "Avg sentiment" : name,
                       ]}
                     />
-                    <ReferenceLine y={0} stroke="#374151" strokeDasharray="4 4" label={{ value: "neutral", fontSize: 9, fill: "#4B5563", position: "right" }} />
+                    <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" label={{ value: "neutral", fontSize: 9, fill: "#4B5563", position: "right" }} />
                     <Line connectNulls type="monotone" dataKey="avg_sentiment" stroke="#6B7280" strokeWidth={1.5} dot={{ r: 2, fill: "#6B7280" }} name="avg_sentiment" />
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -1424,7 +1600,7 @@ function MLDimensionsPanel({ ml }: { ml: MLDimensions }) {
                     <XAxis dataKey="period" tick={{ fontSize: 9, fill: "#6B7280" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis domain={[0, 1]} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} tick={{ fontSize: 9, fill: "#6B7280" }} axisLine={false} tickLine={false} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: 8, fontSize: 11 }}
+                      contentStyle={{ backgroundColor: "rgba(15, 23, 42, 0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, fontSize: 11 }}
                       labelStyle={{ color: "#9CA3AF" }}
                       formatter={(v: number, name: string) => {
                         if (name === "neg_pct") return [`${(v * 100).toFixed(1)}%`, "% negative reviews"];
@@ -1470,7 +1646,7 @@ function MLDimensionsPanel({ ml }: { ml: MLDimensions }) {
 
         {/* ── Dim 3: Market Presence ────────────────────────────────── */}
         <div className="cr-card">
-          <DimHeader title="Market Presence" score={ml.presence_score} max={ml.presence_max} percentile={ml.presence_percentile} color="#10B981" />
+          <DimHeader title="Market Presence" score={ml.presence_score} max={ml.presence_max} percentile={ml.presence_percentile} color="#34D399" />
           <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 10 }}>
             {ml.review_count.toLocaleString()} reviews · log-percentile within {ml.entity_type} sector · green = this company
           </div>
@@ -1479,12 +1655,12 @@ function MLDimensionsPanel({ ml }: { ml: MLDimensions }) {
               <XAxis type="number" tick={{ fontSize: 9, fill: "#6B7280" }} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fill: "#6B7280" }} axisLine={false} tickLine={false} width={68} />
               <Tooltip
-                contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ backgroundColor: "rgba(15, 23, 42, 0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, fontSize: 12 }}
                 formatter={(v: number) => [`${Math.round(v)} reviews`, "Review count"]}
               />
               <Bar dataKey="value" radius={[0, 3, 3, 0]}>
                 {presencePeers.map((p, i) => (
-                  <Cell key={i} fill={p.is_current ? "#10B981" : "#1F2937"} stroke={p.is_current ? "#10B981" : "none"} strokeWidth={p.is_current ? 1 : 0} />
+                  <Cell key={i} fill={p.is_current ? "#34D399" : "rgba(255,255,255,0.05)"} stroke={p.is_current ? "#34D399" : "none"} strokeWidth={p.is_current ? 1 : 0} />
                 ))}
               </Bar>
             </BarChart>
@@ -1493,7 +1669,7 @@ function MLDimensionsPanel({ ml }: { ml: MLDimensions }) {
 
         {/* ── Dim 4: Complaint Intensity ───────────────────────────── */}
         <div className="cr-card">
-          <DimHeader title="Complaint Intensity" score={ml.intensity_score} max={ml.intensity_max} percentile={ml.intensity_percentile} color="#EF4444" />
+          <DimHeader title="Complaint Intensity" score={ml.intensity_score} max={ml.intensity_max} percentile={ml.intensity_percentile} color="#F43F5E" />
           <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 10 }}>
             {ml.negative_pct.toFixed(1)}% negative · sector avg {ml.sector_avg_negative_pct.toFixed(1)}% · red = this company
           </div>
@@ -1502,13 +1678,13 @@ function MLDimensionsPanel({ ml }: { ml: MLDimensions }) {
               <XAxis type="number" tick={{ fontSize: 9, fill: "#6B7280" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fill: "#6B7280" }} axisLine={false} tickLine={false} width={68} />
               <Tooltip
-                contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ backgroundColor: "rgba(15, 23, 42, 0.95)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, fontSize: 12 }}
                 formatter={(v: number) => [`${v.toFixed(1)}%`, "Negative reviews"]}
               />
               <ReferenceLine x={ml.sector_avg_negative_pct} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Sector avg", fontSize: 9, fill: "#F59E0B", position: "top" }} />
               <Bar dataKey="value" radius={[0, 3, 3, 0]}>
                 {intensityPeers.map((p, i) => (
-                  <Cell key={i} fill={p.is_current ? "#EF4444" : "#1F2937"} stroke={p.is_current ? "#EF4444" : "none"} strokeWidth={p.is_current ? 1 : 0} />
+                  <Cell key={i} fill={p.is_current ? "#F43F5E" : "rgba(255,255,255,0.05)"} stroke={p.is_current ? "#F43F5E" : "none"} strokeWidth={p.is_current ? 1 : 0} />
                 ))}
               </Bar>
             </BarChart>
@@ -1530,6 +1706,214 @@ function StatRow({ label, value, mono = false }: { label: string; value: string;
       }}>
         {value}
       </span>
+    </div>
+  );
+}
+
+// ─── Distress Leaderboard ─────────────────────────────────────────────────────
+
+function ScorePill({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, whiteSpace: "nowrap" }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: color, display: "inline-block", flexShrink: 0 }} />
+      <span style={{ color: "#6B7280" }}>{label}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, color }}>
+        {value.toFixed(0)}
+      </span>
+      <span style={{ color: "#374151" }}>/{max}</span>
+    </div>
+  );
+}
+
+function TopDistressLeaderboard({ entries, onSelect }: { entries: DistressEntry[]; onSelect: (e: DistressEntry) => void }) {
+  const colHdr: React.CSSProperties = {
+    fontSize: 9, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" as const,
+    color: "#4B5563", paddingBottom: 6,
+  };
+
+  return (
+    <div style={{ marginTop: 8, marginBottom: 32 }}>
+      {/* Section header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <AlertTriangle size={15} style={{ color: "#F43F5E", flexShrink: 0 }} />
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#F9FAFB" }}>Top Distress Signals</div>
+        <span style={{ fontSize: 11, color: "#6B7280" }}>— V1 opportunity score, highest first</span>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "#4B5563", fontStyle: "italic" }}>
+          Click a row to load the full sales intelligence profile
+        </span>
+      </div>
+
+      {/* Score legend */}
+      <div style={{ display: "flex", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
+        {[
+          { label: "Article Signal", sublabel: "ERP topic match", color: "#6366f1", max: 35 },
+          { label: "Sentiment Trend", sublabel: "complaint direction", color: "#F59E0B", max: 35 },
+          { label: "Market Presence", sublabel: "review volume", color: "#34D399", max: 20 },
+          { label: "Complaint Intensity", sublabel: "vs sector avg", color: "#F43F5E", max: 20 },
+        ].map(d => (
+          <div key={d.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: d.color, display: "inline-block" }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#9CA3AF" }}>{d.label}</span>
+            <span style={{ fontSize: 10, color: "#4B5563" }}>{d.sublabel} · max {d.max}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Column headers */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "36px 1fr 70px 260px 88px 64px",
+        gap: "0 12px",
+        padding: "0 12px 8px",
+        borderBottom: "1px solid #1F2937",
+      }}>
+        <div style={colHdr}>#</div>
+        <div style={colHdr}>Company</div>
+        <div style={{ ...colHdr, textAlign: "center" }}>Score</div>
+        <div style={colHdr}>Score Breakdown</div>
+        <div style={colHdr}>Signal</div>
+        <div style={colHdr} />
+      </div>
+
+      {/* Rows */}
+      {entries.map((entry, i) => {
+        const overall   = entry.overall_score        ?? 0;
+        const complaint = entry.complaint_score       ?? 0;
+        const trend     = entry.sentiment_drop_score  ?? 0;
+        const presence  = entry.review_volume_score   ?? 0;
+        const intensity = Math.max(0, overall - complaint - trend - presence);
+        const total     = overall || 1;
+        const erpPct    = (complaint  / total) * 100;
+        const trendPct  = (trend      / total) * 100;
+        const presPct   = (presence   / total) * 100;
+        const intPct    = (intensity  / total) * 100;
+
+        const scoreColor = getScoreColor(overall);
+        const isInsurance = entry.entity_type === "insurance";
+        const typeLabel = isInsurance ? "INSUR" : "AUTO";
+        const typeBg    = isInsurance ? "#1e3a5f" : "#1c3320";
+        const typeColor = isInsurance ? "#60a5fa" : "#4ade80";
+
+        return (
+          <div
+            key={entry.entity_id}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "36px 1fr 70px 260px 88px 64px",
+              gap: "0 12px",
+              padding: "14px 16px",
+              borderRadius: 12,
+              cursor: "pointer",
+              transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+              alignItems: "center",
+              background: "rgba(15, 23, 42, 0.25)",
+              border: "1px solid rgba(255, 255, 255, 0.02)",
+              marginBottom: 8,
+            }}
+            onMouseEnter={e  => { 
+              e.currentTarget.style.background = "rgba(167, 139, 250, 0.06)"; 
+              e.currentTarget.style.borderColor = "rgba(167, 139, 250, 0.15)";
+              e.currentTarget.style.transform = "translateX(4px)";
+            }}
+            onMouseLeave={e => { 
+              e.currentTarget.style.background = "rgba(15, 23, 42, 0.25)"; 
+              e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.02)";
+              e.currentTarget.style.transform = "translateX(0px)";
+            }}
+            onClick={() => onSelect(entry)}
+          >
+            {/* Rank */}
+            <div style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
+              color: i < 3 ? scoreColor : "#4B5563",
+            }}>
+              {i + 1}
+            </div>
+
+            {/* Company name + type + top complaint */}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#F9FAFB", lineHeight: 1.3 }}>
+                  {entry.entity_name}
+                </span>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4,
+                  backgroundColor: typeBg, color: typeColor, letterSpacing: "0.04em",
+                }}>
+                  {typeLabel}
+                </span>
+                {entry.region && (
+                  <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, backgroundColor: "#1F2937", color: "#6B7280" }}>
+                    {entry.region}
+                  </span>
+                )}
+              </div>
+              {entry.top_complaint_types?.[0] && (
+                <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  ↳ {entry.top_complaint_types[0]}
+                </div>
+              )}
+            </div>
+
+            {/* Total score */}
+            <div style={{ textAlign: "center" }}>
+              <span style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 20, fontWeight: 700, color: scoreColor,
+              }}>
+                {overall.toFixed(0)}
+              </span>
+            </div>
+
+            {/* Score breakdown */}
+            <div>
+              {/* Stacked proportional bar */}
+              <div style={{ display: "flex", height: 5, borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
+                <div style={{ width: `${erpPct}%`,   backgroundColor: "#6366f1", transition: "width 600ms ease" }} />
+                <div style={{ width: `${trendPct}%`, backgroundColor: "#F59E0B", transition: "width 600ms ease" }} />
+                <div style={{ width: `${presPct}%`,  backgroundColor: "#34D399", transition: "width 600ms ease" }} />
+                <div style={{ width: `${intPct}%`,   backgroundColor: "#F43F5E", transition: "width 600ms ease" }} />
+              </div>
+              {/* 4 dimension pills */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <ScorePill label="Art."  value={complaint} max={35} color="#6366f1" />
+                <ScorePill label="Trend" value={trend}     max={35} color="#F59E0B" />
+                <ScorePill label="Pres." value={presence}  max={20} color="#34D399" />
+                <ScorePill label="Int."  value={intensity} max={20} color="#F43F5E" />
+              </div>
+            </div>
+
+            {/* Signal badge */}
+            <div>
+              <span style={{
+                fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 9999,
+                textTransform: "uppercase", letterSpacing: "0.08em",
+                backgroundColor: entry.signal_strength === "strong" ? "rgba(244, 63, 94, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                color:           entry.signal_strength === "strong" ? "#F43F5E"  : "#F59E0B",
+              }}>
+                {entry.signal_strength}
+              </span>
+            </div>
+
+            {/* View button */}
+            <div>
+              <button
+                style={{
+                  background: "transparent", border: "1px solid #374151", color: "#9CA3AF",
+                  padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 500,
+                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                  display: "flex", alignItems: "center", gap: 4,
+                  transition: "all 150ms",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "#6366f1"; e.currentTarget.style.color = "#6366f1"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "#374151"; e.currentTarget.style.color = "#9CA3AF"; }}
+                onClick={ev => { ev.stopPropagation(); onSelect(entry); }}
+              >
+                View <ArrowRight size={10} />
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

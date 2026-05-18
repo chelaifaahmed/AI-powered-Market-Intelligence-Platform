@@ -1,11 +1,19 @@
+import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
+  BookOpen,
   Building2,
   TrendingUp,
   MessageSquare,
   Settings,
   Telescope,
+  Target,
+  Brain,
+  Flame,
+  Globe,
+  ChevronDown,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import AskAiDrawer from "./AskAiDrawer";
@@ -14,21 +22,26 @@ import LiveIndicator from "./LiveIndicator";
 const API = import.meta.env.VITE_API_URL || "";
 
 const mainNav = [
-  { to: "/", label: "Intelligence Brief", icon: LayoutDashboard },
-  { to: "/company", label: "Company Radar", icon: Building2 },
-  { to: "/field-intel", label: "Field Intel", icon: Telescope },
-  { to: "/market", label: "Market Pulse", icon: TrendingUp },
-  { to: "/analyst", label: "AI Analyst", icon: MessageSquare },
+  { to: "/accueil", label: "Alpha Drop", icon: Flame, key: "alpha_drop" },
+  { to: "/company-intelligence", label: "Prospect Strategy", icon: Brain, key: "prospect_strategy" },
+  { to: "/company", label: "Distress Radar", icon: Building2, key: "distress_radar" },
+  { to: "/field-intel", label: "Field Intel", icon: Telescope, key: "field_intel" },
+  { to: "/deal-intelligence", label: "Deal Intelligence", icon: Target, key: "deal_intel" },
+  { to: "/market", label: "Scraping Stats", icon: TrendingUp, key: "scraping_stats" },
+  { to: "/analyst", label: "AI Analyst", icon: MessageSquare, key: "ai_analyst" },
 ];
 
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
-  "/": { title: "Intelligence Brief", subtitle: "Executive summary & key signals" },
-  "/company": { title: "Company Radar", subtitle: "Track companies, clusters & ERP signals" },
+  "/accueil": { title: "Alpha Drop", subtitle: "Vibe check · Real-time tea · Alpha signals" },
+  "/company": { title: "Distress Radar", subtitle: "Track companies, clusters & ERP signals" },
+  "/company-intelligence": { title: "Prospect Strategy", subtitle: "Entity state, hiring signals, intervention depth & outreach timing" },
   "/field-intel": { title: "Field Intel", subtitle: "Market news & pricing data for your sales & prospection calls" },
-  "/market": { title: "Market Pulse", subtitle: "Operational health & top-level intelligence signals" },
+  "/deal-intelligence": { title: "Market Positioning & Deal Intelligence", subtitle: "Strategic Deal-Win Architecture" },
+  "/market": { title: "Scraping Stats", subtitle: "Operational health & top-level intelligence signals" },
   "/analyst": { title: "AI Analyst", subtitle: "Chat with your data using Claude AI" },
   "/admin": { title: "Admin", subtitle: "Operations, sources & system management" },
   "/opportunities": { title: "Market Opportunities", subtitle: "Sales intelligence signals & opportunity scoring" },
+  "/opportunities-v2": { title: "Opportunity Radar", subtitle: "Four-axis V2 model: Pain · Recovery · ERP Fit · Reachability" },
   "/ml-intelligence": { title: "Intelligence Segments", subtitle: "AI-driven clustering & ERP modernization signals" },
   "/brands": { title: "Brand Intelligence", subtitle: "Reputation trends, sentiment analysis & review insights" },
   "/insurance": { title: "Insurance Landscape", subtitle: "Insurance market analysis & competitive intelligence" },
@@ -39,10 +52,78 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   "/sources": { title: "Source Management", subtitle: "Manage scraping sources, keywords & data feeds" },
 };
 
+function LanguageSwitcher() {
+  const { i18n, t } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+
+  const toggleLang = (lang: string) => {
+    i18n.changeLanguage(lang);
+    setIsOpen(false);
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "8px", border: "1px solid #334155", background: "transparent", color: "#9CA3AF", fontSize: "13px", fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+      >
+        <Globe size={14} />
+        {(i18n.language || "en").toUpperCase()}
+        <ChevronDown size={14} />
+      </button>
+      {isOpen && (
+        <div style={{ position: "absolute", right: 0, top: "100%", marginTop: "8px", width: "120px", background: "#1E293B", border: "1px solid #334155", borderRadius: "8px", overflow: "hidden", zIndex: 50, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)" }}>
+          <button 
+            onClick={() => toggleLang('en')}
+            style={{ width: "100%", textAlign: "left", padding: "10px 12px", fontSize: "13px", color: "#E2E8F0", background: "transparent", border: "none", cursor: "pointer", transition: "background 0.2s" }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "#334155"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+          >
+            {t("header.en", "English")}
+          </button>
+          <button 
+            onClick={() => toggleLang('fr')}
+            style={{ width: "100%", textAlign: "left", padding: "10px 12px", fontSize: "13px", color: "#E2E8F0", background: "transparent", border: "none", cursor: "pointer", transition: "background 0.2s" }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "#334155"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+          >
+            {t("header.fr", "Français")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Layout() {
+  const { t } = useTranslation();
   const location = useLocation();
   const path = location.pathname === "/" ? "/" : "/" + location.pathname.split("/")[1];
-  const meta = PAGE_TITLES[path] ?? { title: "Platform", subtitle: "Market Intelligence Platform" };
+  
+  const getMeta = (p: string) => {
+    const keyMap: Record<string, string> = {
+      "/accueil": "accueil",
+      "/company": "company",
+      "/company-intelligence": "company-intelligence",
+      "/field-intel": "field-intel",
+      "/deal-intelligence": "deal-intelligence",
+      "/market": "market",
+      "/analyst": "analyst",
+      "/admin": "admin",
+    };
+    const key = keyMap[p];
+    if (key) {
+      return {
+        title: t(`pages.${key}.title`, PAGE_TITLES[p]?.title),
+        subtitle: t(`pages.${key}.subtitle`, PAGE_TITLES[p]?.subtitle)
+      };
+    }
+    return PAGE_TITLES[p] ?? { title: t("header.title", "Platform"), subtitle: t("header.subtitle", "Market Opportunities & Prospection Platform") };
+  };
+
+  const meta = getMeta(path);
 
   const { data: oppSummary } = useQuery({
     queryKey: ["opp-summary-badge"],
@@ -56,18 +137,18 @@ export default function Layout() {
       ? oppSummary.strong_signals + oppSummary.moderate_signals
       : null;
 
-  // Hide topbar on Intelligence Brief — it has its own header
-  const hideTopbar = path === "/";
+  // Hide topbar on Alpha Drop and AI Analyst pages for a cleaner full-screen experience
+  const hideTopbar = path === "/accueil" || path === "/analyst";
 
   return (
     <div
       className="flex h-screen overflow-hidden"
-      style={{ backgroundColor: "#0A0F1E", color: "#F9FAFB", fontFamily: "'DM Sans', sans-serif" }}
+      style={{ background: "radial-gradient(circle at top right, #1E293B 0%, #0F172A 40%, #020617 100%)", color: "#F9FAFB", fontFamily: "'DM Sans', sans-serif" }}
     >
       {/* ─── Sidebar ─── */}
       <aside
         className="flex flex-col flex-shrink-0 overflow-y-auto"
-        style={{ width: 220, backgroundColor: "#0A0F1E", borderRight: "1px solid #1F2937" }}
+        style={{ width: 220, background: "rgba(15,23,42,0.4)", backdropFilter: "blur(12px)", borderRight: "1px solid rgba(255,255,255,0.05)" }}
       >
         {/* Brand */}
         <div className="flex items-center" style={{ padding: "24px 20px 20px", gap: 10 }}>
@@ -78,13 +159,13 @@ export default function Layout() {
           />
           <div>
             <div style={{ color: "#F9FAFB", fontWeight: 600, fontSize: 13, lineHeight: 1 }}>TEAMWILL</div>
-            <div style={{ color: "#6B7280", fontWeight: 400, fontSize: 11, marginTop: 3 }}>Market Intelligence</div>
+            <div style={{ color: "#6B7280", fontWeight: 400, fontSize: 11, marginTop: 3 }}>{t("nav.market_intel", "Market Intelligence")}</div>
           </div>
         </div>
 
         {/* Main nav */}
         <nav style={{ padding: "8px 12px", marginTop: 8, flex: 1 }}>
-          {mainNav.map(({ to, label, icon: Icon }) => (
+          {mainNav.map(({ to, label, icon: Icon, key }) => (
             <NavLink key={to} to={to} end={to === "/"} style={{ textDecoration: "none" }}>
               {({ isActive }) => (
                 <div
@@ -116,7 +197,7 @@ export default function Layout() {
                   }}
                 >
                   <Icon size={16} style={{ color: isActive ? "#6366f1" : "inherit" }} strokeWidth={2} />
-                  <span>{label}</span>
+                  <span>{t(`nav.${key}`, label)}</span>
                 </div>
               )}
             </NavLink>
@@ -155,15 +236,74 @@ export default function Layout() {
                 }}
               >
                 <Settings size={14} style={{ color: isActive ? "#6366f1" : "inherit" }} strokeWidth={2} />
-                <span>Admin</span>
+                <span>{t("nav.admin", "Admin")}</span>
               </div>
             )}
           </NavLink>
         </div>
 
+        {/* User Auth Section */}
+        <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          {localStorage.getItem('access_token') ? (
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "8px", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "linear-gradient(135deg, #6366F1 0%, #EC4899 100%)", display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "bold", color: "#FFF" }}>
+                  {(localStorage.getItem('user_name') || "U")[0].toUpperCase()}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#F9FAFB", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                    {localStorage.getItem('user_name') || "User"}
+                  </span>
+                  <span style={{ fontSize: "9px", color: "#10B981" }}>Verified Account</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  localStorage.removeItem('access_token');
+                  localStorage.removeItem('user_name');
+                  window.location.reload();
+                }}
+                style={{ width: "100%", padding: "4px", fontSize: "11px", color: "#EF4444", background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.1)", borderRadius: "4px", cursor: "pointer", transition: "background 0.2s" }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.05)"}
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <NavLink to="/auth" style={{ textDecoration: "none" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: "#38BDF8",
+                  backgroundColor: "rgba(56, 189, 248, 0.05)",
+                  border: "1px solid rgba(56, 189, 248, 0.1)",
+                  cursor: "pointer",
+                  transition: "all 150ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(56, 189, 248, 0.15)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(56, 189, 248, 0.05)";
+                }}
+              >
+                <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid #38BDF8", display: "inline-block" }} />
+                <span>Sign In / Register</span>
+              </div>
+            </NavLink>
+          )}
+        </div>
+
         {/* Version footer */}
         <div style={{ padding: "16px 12px", borderTop: "1px solid #1F2937", fontSize: 10, color: "#374151" }}>
-          v2.0 · Real data only
+          {t("nav.version", "v2.0 · Real data only")}
         </div>
       </aside>
 
@@ -173,7 +313,7 @@ export default function Layout() {
         {!hideTopbar && (
           <header
             className="flex-shrink-0 flex items-center justify-between sticky top-0 z-30"
-            style={{ height: 56, backgroundColor: "#0A0F1E", borderBottom: "1px solid #1F2937", padding: "0 32px" }}
+            style={{ height: 56, background: "rgba(15,23,42,0.4)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,255,255,0.05)", padding: "0 32px" }}
           >
             <div>
               <h1 style={{ fontSize: 16, fontWeight: 600, color: "#F9FAFB", lineHeight: 1.3 }}>{meta.title}</h1>
@@ -191,6 +331,7 @@ export default function Layout() {
                 <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#F59E0B", display: "inline-block" }} />
                 {signalCount != null ? `${signalCount} signals` : "—"}
               </span>
+              <LanguageSwitcher />
               <a
                 href="/docs"
                 target="_blank"
@@ -209,12 +350,12 @@ export default function Layout() {
         )}
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto" style={{ backgroundColor: "#0A0F1E" }}>
+        <main className="flex-1 overflow-y-auto" style={{ background: "transparent" }}>
           <Outlet />
         </main>
       </div>
 
-      <AskAiDrawer />
+      {path !== "/field-intel" && path !== "/analyst" && <AskAiDrawer />}
     </div>
   );
 }

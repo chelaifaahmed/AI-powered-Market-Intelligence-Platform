@@ -1,12 +1,52 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Newspaper, MapPin, Car, Globe, Search, X, BookOpen } from "lucide-react";
+import { ExternalLink, Newspaper, MapPin, Car, Globe, Search, X, BookOpen, Calendar, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { api } from "../api/client";
-import type { Article, Listing } from "../api/client";
+import type { Article, ArticleEvent, Listing } from "../api/client";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const API = import.meta.env.VITE_API_URL || "";
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
+const STYLES = `
+  @keyframes intelFadeUp {
+    from { opacity: 0; transform: translateY(30px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes floatPulse {
+    0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 8px rgba(99,102,241,0.6)); }
+    50% { transform: translateY(-5px) scale(1.05); filter: drop-shadow(0 0 15px rgba(99,102,241,0.9)); }
+  }
+  @keyframes glowShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .intel-card {
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    backdrop-filter: blur(12px);
+    background: rgba(15,23,42,0.6) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+  }
+  .intel-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 25px rgba(99,102,241,0.3);
+    border-color: rgba(255,255,255,0.3) !important;
+    background: rgba(30,41,59,0.85) !important;
+  }
+  .intel-fade-up { animation: intelFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .icon-float { animation: floatPulse 3s ease-in-out infinite; }
+  .text-glow { text-shadow: 0 0 20px rgba(255,255,255,0.3); }
+  .gradient-text-intel {
+    background: linear-gradient(270deg, #818CF8, #34D399, #FBBF24, #818CF8);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: glowShift 6s ease infinite;
+  }
+`;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -168,7 +208,8 @@ function getSalesAngle(title: string): { label: string; color: string } | null {
 
 function getCategoryColor(cat: string | null): string {
   const c = (cat || "").toLowerCase();
-  if (c.includes("insurance")) return "#6366f1";
+  if (c === "forum") return "#6366f1";
+  if (c.includes("insurance")) return "#818CF8";
   if (c.includes("ev") || c.includes("electric")) return "#10B981";
   if (c.includes("market") || c.includes("keyword")) return "#F59E0B";
   if (c.includes("technology")) return "#3B82F6";
@@ -194,12 +235,12 @@ const regionBadge = (region: string | null) => {
 
 function StatPill({ label, value, color }: { label: string; value: number | string; color: string }) {
   return (
-    <div style={{
-      background: "#111827", border: "1px solid #1F2937", borderRadius: 10,
-      padding: "14px 20px", display: "flex", flexDirection: "column", gap: 4,
+    <div className="intel-card" style={{
+      background: "rgba(15,23,42,0.8)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16,
+      padding: "16px 24px", display: "flex", flexDirection: "column", gap: 6, minWidth: 160,
     }}>
-      <span style={{ fontSize: 22, fontWeight: 700, color }}>{value}</span>
-      <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500 }}>{label}</span>
+      <span style={{ fontSize: 28, fontWeight: 800, color, filter: `drop-shadow(0 0 10px ${color}80)` }}>{value}</span>
+      <span style={{ fontSize: 13, color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</span>
     </div>
   );
 }
@@ -233,16 +274,17 @@ function TabBar({
 
 function SectionHeader({ icon: Icon, title, sub }: { icon: React.ElementType; title: string; sub: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-      <div style={{
-        width: 32, height: 32, borderRadius: 8, background: "rgba(99,102,241,0.15)",
+    <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+      <div className="icon-float" style={{
+        width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(99,102,241,0.05))",
         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        border: "1px solid rgba(99,102,241,0.3)"
       }}>
-        <Icon size={16} style={{ color: "#6366f1" }} />
+        <Icon size={22} style={{ color: "#818CF8" }} />
       </div>
       <div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#F9FAFB" }}>{title}</div>
-        <div style={{ fontSize: 11, color: "#6B7280", marginTop: 1 }}>{sub}</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#F9FAFB", letterSpacing: "-0.5px" }}>{title}</div>
+        <div style={{ fontSize: 13, color: "#94A3B8", marginTop: 2 }}>{sub}</div>
       </div>
     </div>
   );
@@ -256,19 +298,10 @@ function ArticleCard({ article, onClick }: { article: Article; onClick: () => vo
   const angle = getSalesAngle(article.title);
   return (
     <div
-      style={{
-        background: "#111827", border: "1px solid #1F2937", borderRadius: 10,
-        padding: "14px 16px", marginBottom: 8, transition: "border-color 150ms ease, background 150ms ease",
-        cursor: "pointer",
-      }}
+      className="intel-card"
       onClick={onClick}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "#6366f1";
-        e.currentTarget.style.background = "#161D2E";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "#1F2937";
-        e.currentTarget.style.background = "#111827";
+      style={{
+        padding: "16px 20px", marginBottom: 12, borderRadius: 16, cursor: "pointer",
       }}
     >
       {/* Top row: category + region + date */}
@@ -279,7 +312,7 @@ function ArticleCard({ article, onClick }: { article: Article; onClick: () => vo
             background: `${catColor}18`, color: catColor, letterSpacing: "0.3px",
             textTransform: "uppercase",
           }}>
-            {article.category}
+            {article.forum_subcategory ? `r/${article.forum_subcategory}` : article.category_label}
           </span>
         )}
         <span style={{
@@ -295,29 +328,30 @@ function ArticleCard({ article, onClick }: { article: Article; onClick: () => vo
 
       {/* Title */}
       <div style={{
-        fontSize: 13, fontWeight: 600, color: "#E5E7EB", lineHeight: 1.5, marginBottom: 6,
+        fontSize: 15, fontWeight: 700, color: "#F1F5F9", lineHeight: 1.5, marginBottom: 8,
       }}>
         {article.title}
       </div>
 
       {/* Sales angle pill */}
       {angle && (
-        <div style={{ marginBottom: 8 }}>
-          <span style={{
-            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
-            background: `${angle.color}18`, color: angle.color,
-            border: `1px solid ${angle.color}30`,
+        <div style={{ marginBottom: 12 }}>
+          <span className="intel-badge" style={{
+            fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 8,
+            background: `linear-gradient(135deg, ${angle.color}15, transparent)`, color: angle.color,
+            border: `1px solid ${angle.color}40`, display: "inline-block",
+            boxShadow: `0 0 10px ${angle.color}15`
           }}>
-            ↳ {angle.label}
+            ⚡ Alpha Drop: {angle.label}
           </span>
         </div>
       )}
 
       {/* Source + read icon */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <Globe size={11} style={{ color: "#4B5563" }} />
-        <span style={{ fontSize: 11, color: "#4B5563" }}>{getDomain(article.source_url)}</span>
-        <BookOpen size={11} style={{ color: "#6366f1", marginLeft: "auto" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Globe size={13} style={{ color: "#64748B" }} />
+        <span style={{ fontSize: 12, color: "#64748B", fontWeight: 500 }}>{getDomain(article.source_url)}</span>
+        <BookOpen size={13} className="icon-float" style={{ color: "#818CF8", marginLeft: "auto" }} />
       </div>
     </div>
   );
@@ -395,13 +429,64 @@ function ListingCard({ listing }: { listing: Listing }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+// ── Event helpers ────────────────────────────────────────────────────────────
+
+const EVENT_CAT_COLOR: Record<string, string> = {
+  erp: "#7F77DD", startup: "#1D9E75", finance: "#378ADD",
+  consulting: "#EF9F27", automotive: "#639922", insurance: "#E24B4A",
+  forum: "#6366f1", management: "#888780",
+};
+
+function getEvtCatColor(cat: string | null): string {
+  return EVENT_CAT_COLOR[(cat ?? "").toLowerCase()] ?? "#6B7280";
+}
+
+function getEventAudience(body: string): string {
+  const b = body.toLowerCase();
+  if (b.includes("cio") || b.includes("cto")) return "C-Suite & Tech Leaders";
+  if (b.includes("dealer") || b.includes("automotive")) return "Automotive Professionals";
+  if (b.includes("insurer") || b.includes("underwriting") || b.includes("claims")) return "Insurance Leaders";
+  if (b.includes("startup") || b.includes("founder") || b.includes(" vc ")) return "Founders & Investors";
+  if (b.includes("erp") || b.includes("sap") || b.includes("dynamics") || b.includes("oracle")) return "ERP Practitioners";
+  if (b.includes("consultant")) return "Consultants";
+  return "Enterprise Professionals";
+}
+
+function getEventLocation(body: string): string {
+  const b = body.toLowerCase();
+  const locs: [string, string][] = [
+    ["nashville", "Nashville, TN"], ["las vegas", "Las Vegas, NV"],
+    ["orlando", "Orlando, FL"], ["san francisco", "San Francisco, CA"],
+    ["seattle", "Seattle, WA"], ["birmingham", "Birmingham, UK"],
+    ["london", "London, UK"], ["sao paulo", "São Paulo, Brazil"],
+    ["são paulo", "São Paulo, Brazil"], ["virtual", "Online"], ["online", "Online"],
+  ];
+  for (const [kw, label] of locs) if (b.includes(kw)) return label;
+  return "Global";
+}
+
+const EVT_TOPICS = ["AI", "ERP", "CRM", "SAP", "Dynamics", "Oracle", "insurance",
+  "automotive", "dealer", "claims", "underwriting", "startup", "digital transformation"] as const;
+
+function extractEventTopics(body: string): string[] {
+  const lower = body.toLowerCase();
+  return EVT_TOPICS.filter(kw => lower.includes(kw.toLowerCase()));
+}
+
+function daysUntil(pubDate: string | null): number {
+  if (!pubDate) return 0;
+  return Math.floor((new Date(pubDate).getTime() - new Date().getTime()) / 86400000);
+}
+
 const ARTICLE_TABS = [
   { key: "all",       label: "All" },
   { key: "auto",      label: "Auto & EV" },
   { key: "insurance", label: "Insurance" },
+  { key: "forum",     label: "Reddit Forums" },
   { key: "tn",        label: "Tunisia" },
   { key: "eu",        label: "Europe" },
   { key: "erp",       label: "ERP Systems" },
+  { key: "events",    label: "Events Calendar" },
 ];
 
 const LISTING_TABS = [
@@ -422,6 +507,10 @@ export default function FieldIntel() {
   const [listingSearch, setListingSearch] = useState("");
   const [listingSort, setListingSort] = useState<SortMode>("newest");
   const [articleModal, setArticleModal] = useState<{ article: Article } | null>(null);
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [pastEventsOpen, setPastEventsOpen] = useState(false);
+
+  const isEventsTab = articleTab === "events";
 
   // Derive article query params from active tab
   // relevant_only=true filters out off-topic articles (war, weather, politics)
@@ -429,13 +518,14 @@ export default function FieldIntel() {
   const articleParams = (() => {
     if (articleTab === "insurance") return { category: "insurance", relevant_only: true };
     if (articleTab === "auto")      return { categories: "Automotive,automotive,EV,Market,Fleet,Keyword Search", relevant_only: true };
+    if (articleTab === "forum")     return { category: "forum" };
     if (articleTab === "tn")        return { region: "TN", relevant_only: true };
     if (articleTab === "eu")        return { region: "EU", relevant_only: true };
     if (articleTab === "erp")       return { search: "ERP" };
     return {};
   })();
 
-  // Articles query
+  // Articles query (disabled on events tab)
   const { data: artData, isLoading: artLoading } = useQuery({
     queryKey: ["field-articles", articleTab, articlePage],
     queryFn: () => api.articles({
@@ -445,6 +535,15 @@ export default function FieldIntel() {
       ...articleParams,
     }),
     staleTime: 30000,
+    enabled: !isEventsTab,
+  });
+
+  // Events query (only active on events tab)
+  const { data: eventsData } = useQuery({
+    queryKey: ["field-events"],
+    queryFn: api.articleEvents,
+    staleTime: 30000,
+    enabled: isEventsTab,
   });
 
   // Article summary query
@@ -503,13 +602,63 @@ export default function FieldIntel() {
   const insuranceArticles = artCategories?.find((c) => c.category?.toLowerCase() === "insurance")?.count ?? 0;
 
   return (
-    <div style={{ padding: "28px 32px", minHeight: "100vh", backgroundColor: "#0A0F1E" }}>
+    <div style={{ padding: "28px 32px", minHeight: "100vh", backgroundColor: "transparent" }}>
+      <style>{STYLES}</style>
 
-      {/* ── Stats bar ───────────────────────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 28 }}>
-        <StatPill label="Market Articles" value={lstSummary ? totalArticles || "—" : "—"} color="#6366f1" />
-        <StatPill label="Insurance Articles" value={insuranceArticles || "—"} color="#818CF8" />
-      </div>
+      <div className="intel-fade-up">
+
+      {/* ── Section 1: Hero Banner ──────────────────────────────────────── */}
+      <section 
+        className="intel-card" 
+        style={{ 
+          padding: "40px", 
+          borderRadius: "24px", 
+          position: "relative", 
+          overflow: "hidden",
+          marginBottom: 32,
+          boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)"
+        }}
+      >
+        <div style={{
+          position: "absolute",
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundImage: "url(/bg_intel.png)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          opacity: 0.35,
+          zIndex: 0,
+          mixBlendMode: "screen",
+          filter: "brightness(1.2) contrast(1.1)"
+        }} />
+        <div style={{
+          position: "absolute",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "linear-gradient(to right, rgba(10,15,30,0.9) 0%, rgba(10,15,30,0.4) 100%)",
+          zIndex: 0
+        }} />
+
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <span className="icon-float" style={{ display: "block", width: 10, height: 10, borderRadius: "50%", background: "#6366F1", boxShadow: "0 0 10px #6366F1" }} />
+              <span style={{ fontSize: 13, color: "#94A3B8", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                Live Radar · Global & TN
+              </span>
+            </div>
+            <h1 className="text-glow" style={{ fontSize: 42, fontWeight: 800, color: "#F1F5F9", lineHeight: 1.15, marginBottom: 14, letterSpacing: "-1px" }}>
+              <span className="gradient-text-intel">Field Comms & Intel</span><br />
+              Spill the industry tea.
+            </h1>
+            <p style={{ fontSize: 16, color: "#CBD5E1", lineHeight: 1.7, maxWidth: 650, fontWeight: 400 }}>
+              Real-time auto and insurance market news. Use these to drop serious Alpha during your cold calls. Be the one who knows what’s up.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 16 }}>
+            <StatPill label="Market Articles" value={lstSummary ? totalArticles || "—" : "—"} color="#6366f1" />
+            <StatPill label="Insurance Articles" value={insuranceArticles || "—"} color="#818CF8" />
+          </div>
+        </div>
+      </section>
 
       {/* ── Single-column layout ───────────────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24, alignItems: "start" }}>
@@ -517,7 +666,7 @@ export default function FieldIntel() {
         {/* ── LEFT: Market News ───────────────────────────────────────────── */}
         <div>
           <div style={{
-            background: "#0D1424", border: "1px solid #1F2937", borderRadius: 14, padding: "20px 20px 16px",
+            background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 24, padding: "28px", backdropFilter: "blur(12px)"
           }}>
             <SectionHeader
               icon={Newspaper}
@@ -528,7 +677,9 @@ export default function FieldIntel() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <TabBar tabs={ARTICLE_TABS} active={articleTab} onChange={(k) => { setArticleTab(k); setArticlePage(0); }} />
               <span style={{ fontSize: 11, color: "#4B5563" }}>
-                {totalArticles} article{totalArticles !== 1 ? "s" : ""}
+                {isEventsTab
+                  ? `${(eventsData ?? []).length} events`
+                  : `${totalArticles} article${totalArticles !== 1 ? "s" : ""}`}
               </span>
             </div>
 
@@ -583,9 +734,229 @@ export default function FieldIntel() {
                 use these articles to open conversations about digital transformation with prospects still on legacy systems.
               </div>
             )}
+            {articleTab === "forum" && (
+              <div style={{
+                background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)",
+                borderRadius: 8, padding: "10px 14px", marginBottom: 12,
+                fontSize: 12, color: "#A5B4FC", lineHeight: 1.5,
+              }}>
+                <strong>Reddit Forums:</strong> Real customer conversations from automotive &amp; insurance subreddits —
+                each card shows the subreddit name as its category. Use these to understand what buyers are actually complaining about.
+              </div>
+            )}
 
-            {/* Article list */}
-            {artLoading ? (
+            {/* Article list / Events timeline */}
+            {isEventsTab ? (() => {
+              const events = eventsData ?? [];
+              const upcoming = events.filter(e => e.is_upcoming || e.is_this_month);
+              const past = events.filter(e => e.is_past);
+              const thisMonth = events.filter(e => e.is_this_month).length;
+              return (
+                <div>
+                  {/* Stats line */}
+                  {events.length > 0 && (
+                    <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 14, display: "flex", gap: 12 }}>
+                      <span style={{ color: "#6366f1" }}>{events.length} events tracked</span>
+                      <span>·</span>
+                      <span style={{ color: "#10B981" }}>{upcoming.length} coming soon</span>
+                      <span>·</span>
+                      <span style={{ color: "#F59E0B" }}>{thisMonth} this month</span>
+                    </div>
+                  )}
+
+                  {/* Upcoming events */}
+                  {upcoming.length === 0 && past.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "40px 0", color: "#4B5563", fontSize: 13 }}>
+                      No events found.
+                    </div>
+                  )}
+                  {upcoming.map(ev => {
+                    const d = daysUntil(ev.publication_date);
+                    const isExpanded = expandedEventId === String(ev.id);
+                    const dateColor = d <= 0 ? "#EF4444" : d <= 7 ? "#14B8A6" : d <= 30 ? "#F59E0B" : "#6B7280";
+                    const dateLabel = d <= 0 ? "TODAY" : d === 1 ? "TOMORROW" : String(d);
+                    const monthLabel = ev.publication_date
+                      ? new Date(ev.publication_date).toLocaleString("en", { month: "short" }).toUpperCase()
+                      : "";
+                    const catColor = getEvtCatColor(ev.category);
+                    const audience = getEventAudience(ev.body_text ?? "");
+                    const location = getEventLocation(ev.body_text ?? "");
+                    const topics = extractEventTopics(ev.body_text ?? "");
+                    const domain = ev.source_url ? new URL(ev.source_url).hostname.replace("www.", "") : "";
+                    return (
+                      <div key={ev.id} style={{
+                        borderBottom: "1px solid #1F2937", paddingBottom: 12, marginBottom: 12,
+                      }}>
+                        <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                          {/* Date block */}
+                          <div style={{ flexShrink: 0, width: 64, textAlign: "center" }}>
+                            <div style={{ fontSize: d <= 0 ? 11 : d === 1 ? 9 : 22, fontWeight: 700, color: dateColor, lineHeight: 1 }}>
+                              {dateLabel}
+                            </div>
+                            <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, letterSpacing: 1 }}>
+                              {d > 1 ? "days" : ""} {monthLabel}
+                            </div>
+                          </div>
+
+                          {/* Center: meta + title + location */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4, flexWrap: "wrap" }}>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                                background: catColor + "22", color: catColor,
+                                borderRadius: 4, padding: "2px 7px", textTransform: "uppercase",
+                              }}>{ev.category}</span>
+                              {audience && (
+                                <span style={{
+                                  fontSize: 10, color: "#9CA3AF", background: "#1F2937",
+                                  borderRadius: 4, padding: "2px 7px",
+                                }}>{audience}</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#F9FAFB", lineHeight: 1.35, marginBottom: 3 }}>
+                              {ev.title}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                              {location && (
+                                <span style={{
+                                  display: "flex", alignItems: "center", gap: 4,
+                                  fontSize: 11, fontWeight: 500, color: "#9CA3AF"
+                                }}>
+                                  <MapPin size={12} /> {location}
+                                </span>
+                              )}
+                              {domain && <span style={{ fontSize: 11, color: "#6B7280" }}>· {domain}</span>}
+                            </div>
+                          </div>
+
+                          {/* Right: actions */}
+                          <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                            <button
+                              onClick={() => setExpandedEventId(isExpanded ? null : String(ev.id))}
+                              style={{
+                                fontSize: 11, color: "#6366f1", background: "none",
+                                border: "1px solid #374151", borderRadius: 6, padding: "4px 10px",
+                                cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                              }}
+                            >
+                              Details {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                            </button>
+                            {ev.source_url && (
+                              <a href={ev.source_url} target="_blank" rel="noreferrer"
+                                style={{ fontSize: 10, color: "#4B5563", display: "flex", alignItems: "center", gap: 3 }}>
+                                <Sparkles size={10} /> Visit →
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Expanded inline panel */}
+                        {isExpanded && (
+                          <div style={{
+                            marginTop: 10, marginLeft: 66, background: "#111827",
+                            border: "1px solid #1F2937", borderRadius: 8, padding: "12px 14px",
+                            display: "flex", gap: 16,
+                          }}>
+                            <div style={{ flex: "0 0 60%", minWidth: 0 }}>
+                              <p style={{ fontSize: 12, color: "#9CA3AF", lineHeight: 1.6, margin: "0 0 10px" }}>
+                                {ev.body_text}
+                              </p>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {topics.map(t => (
+                                  <span key={t} style={{
+                                    fontSize: 10, color: "#6366f1", background: "rgba(99,102,241,0.1)",
+                                    borderRadius: 4, padding: "2px 7px",
+                                  }}>{t}</span>
+                                ))}
+                              </div>
+                            </div>
+                            <div style={{ flex: "0 0 40%", minWidth: 0, display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
+                              <span style={{
+                                fontSize: 10, color: "#6B7280", background: "#1F2937",
+                                borderRadius: 4, padding: "3px 8px",
+                              }}>{ev.region ?? "Global"}</span>
+                              {ev.source_url && (
+                                <a href={ev.source_url} target="_blank" rel="noreferrer" style={{
+                                  fontSize: 11, color: "#6366f1", textDecoration: "none",
+                                  display: "flex", alignItems: "center", gap: 4,
+                                }}>
+                                  Visit event →
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Past events collapsible */}
+                  {past.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        onClick={() => setPastEventsOpen(o => !o)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6,
+                          fontSize: 11, color: "#6B7280", background: "none", border: "none",
+                          cursor: "pointer", marginBottom: 8,
+                        }}
+                      >
+                        {pastEventsOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        {past.length} past event{past.length !== 1 ? "s" : ""}
+                      </button>
+                      {pastEventsOpen && past.map(ev => {
+                        const catColor = getEvtCatColor(ev.category);
+                        const audience = getEventAudience(ev.body_text ?? "");
+                        const location = getEventLocation(ev.body_text ?? "");
+                        const domain = ev.source_url ? new URL(ev.source_url).hostname.replace("www.", "") : "";
+                        const monthLabel = ev.publication_date
+                          ? new Date(ev.publication_date).toLocaleString("en", { month: "short" }).toUpperCase()
+                          : "";
+                        return (
+                          <div key={ev.id} style={{
+                            display: "flex", gap: 14, alignItems: "flex-start", opacity: 0.55,
+                            borderBottom: "1px solid #1F2937", paddingBottom: 10, marginBottom: 10,
+                          }}>
+                            <div style={{ flexShrink: 0, width: 64, textAlign: "center" }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280" }}>PAST</div>
+                              <div style={{ fontSize: 10, color: "#4B5563", marginTop: 2, letterSpacing: 1 }}>{monthLabel}</div>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 3, flexWrap: "wrap" }}>
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                                  background: catColor + "22", color: catColor,
+                                  borderRadius: 4, padding: "2px 7px", textTransform: "uppercase",
+                                }}>{ev.category}</span>
+                                {audience && (
+                                  <span style={{ fontSize: 10, color: "#6B7280", background: "#1F2937", borderRadius: 4, padding: "2px 7px" }}>
+                                    {audience}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "#9CA3AF", lineHeight: 1.3, marginBottom: 2 }}>
+                                {ev.title}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                                {location && (
+                                  <span style={{
+                                    display: "flex", alignItems: "center", gap: 4,
+                                    fontSize: 11, fontWeight: 500, color: "#9CA3AF"
+                                  }}>
+                                    <MapPin size={12} /> {location}
+                                  </span>
+                                )}
+                                {domain && <span style={{ fontSize: 11, color: "#4B5563" }}>· {domain}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })() : artLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} style={{ background: "#111827", borderRadius: 10, height: 80, marginBottom: 8, opacity: 0.5,
                   animation: "pulse 1.5s ease-in-out infinite" }} />
@@ -768,7 +1139,8 @@ export default function FieldIntel() {
         </div>
         )}
 
-      </div>
+      </div> {/* End grid */}
+    </div> {/* End intel-fade-up */}
 
       {/* ── Article Summary Modal ──────────────────────────────────────────── */}
       {articleModal && (

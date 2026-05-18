@@ -34,6 +34,7 @@ import os
 import subprocess
 import sys
 import threading
+import re
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -42,7 +43,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Ensure project root is importable
@@ -54,7 +55,7 @@ if _PROJECT_ROOT not in sys.path:
 from dotenv import load_dotenv
 load_dotenv(os.path.join(_PROJECT_ROOT, ".env"))
 
-from sqlalchemy import func
+from sqlalchemy import func, text, or_
 
 from database.connection import get_db_session, health_check
 from database.models import (
@@ -136,6 +137,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from api.auth import router as auth_router
+app.include_router(auth_router, prefix="/api")
+
 # ---------------------------------------------------------------------------
 # Dashboard static files (Phase 11)
 # Mount the Vite build output so the SPA is served at /ui/
@@ -191,7 +195,7 @@ class CarReviewOut(BaseModel):
     cons: Optional[str]
     variant_tested: Optional[str]
     scraped_at: datetime
-    data_origin: str = "seeded"
+    data_origin: str = "reference"
 
 
 class InsuranceReviewOut(BaseModel):
@@ -204,7 +208,7 @@ class InsuranceReviewOut(BaseModel):
     author: Optional[str]
     review_date: Optional[date]
     scraped_at: datetime
-    data_origin: str = "seeded"
+    data_origin: str = "reference"
 
 
 class ListingOut(BaseModel):
@@ -224,23 +228,61 @@ class ListingOut(BaseModel):
     trim_level: Optional[str]
     listing_year: Optional[int]
     scraped_at: datetime
-    data_origin: str = "seeded"
+    data_origin: str = "reference"
     brand_name: Optional[str] = None
     model_name: Optional[str] = None
+
+
+_CATEGORY_LABELS: dict[str, str] = {
+    "forum": "Forums & Reddit",
+    "erp": "ERP & Enterprise",
+    "startup": "Startups & VC",
+    "finance": "Finance & Fintech",
+    "consulting": "Consulting",
+    "data": "Data & AI",
+    "management": "Management",
+    "automotive": "Automotive",
+    "insurance": "Insurance",
+    "market": "Market Intelligence",
+    "tunisia": "Tunisia",
+}
 
 
 class ArticleOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     title: str
-    author: Optional[str]
-    publication_date: Optional[date]
-    body_text: Optional[str]
+    author: Optional[str] = None
+    publication_date: Optional[date] = None
+    body_text: Optional[str] = None
     source_url: str
-    category: Optional[str]
-    region: Optional[str]
+    category: Optional[str] = None
+    region: Optional[str] = None
     scraped_at: datetime
-    data_origin: str = "seeded"
+    data_origin: str = "reference"
+    tags: List[str] = Field(default_factory=list)
+    # computed
+    days_ago: Optional[int] = None
+    is_new: bool = False
+    category_label: str = "General"
+    forum_subcategory: Optional[str] = None
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _coerce_tags(cls, v: object) -> List[str]:
+        if v is None:
+            return []
+        return list(v)
+
+    @model_validator(mode="after")
+    def _compute_derived(self) -> "ArticleOut":
+        if self.publication_date:
+            self.days_ago = (date.today() - self.publication_date).days
+            self.is_new = self.days_ago <= 30
+        self.category_label = _CATEGORY_LABELS.get((self.category or "").lower(), "General")
+        if (self.category or "").lower() == "forum" and self.tags:
+            self.forum_subcategory = self.tags[0]
+        return self
 
 
 class CompetitorPricingOut(BaseModel):
@@ -252,7 +294,7 @@ class CompetitorPricingOut(BaseModel):
     region: Optional[str]
     snapshot_date: date
     scraped_at: datetime
-    data_origin: str = "seeded"
+    data_origin: str = "reference"
 
 
 class ReputationOut(BaseModel):
@@ -344,7 +386,7 @@ def list_brand_models(brand_id: UUID):
 @app.get("/api/brands/{brand_id}/reputation", response_model=List[ReputationOut], tags=["analytics"])
 def brand_reputation(
     brand_id: UUID,
-    origin: Optional[str] = Query("scraped", description="Provenance filter: all | seeded | scraped"),
+    origin: Optional[str] = Query("scraped", description="Provenance filter: all | reference | scraped"),
 ):
     """Monthly brand reputation scores filtered by data origin. Defaults to scraped (live) only."""
     with get_db_session() as session:
@@ -364,7 +406,7 @@ def brand_reputation(
 @app.get("/api/brands/{brand_id}/sentiment", response_model=List[SentimentTrendOut], tags=["analytics"])
 def brand_sentiment(
     brand_id: UUID,
-    origin: Optional[str] = Query("scraped", description="Provenance filter: all | seeded | scraped"),
+    origin: Optional[str] = Query("scraped", description="Provenance filter: all | reference | scraped"),
 ):
     """Monthly sentiment trend filtered by data origin. Defaults to scraped (live) only."""
     with get_db_session() as session:
@@ -388,7 +430,7 @@ def list_car_reviews(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     brand: Optional[str] = Query(None, description="Filter by brand name (case-insensitive)"),
-    origin: Optional[str] = Query(None, description="Filter by provenance: seeded | scraped | imported"),
+    origin: Optional[str] = Query(None, description="Filter by provenance: reference | scraped | imported"),
 ):
     """Paginated car reviews, newest first."""
     with get_db_session() as session:
@@ -602,7 +644,7 @@ def list_car_listings(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     brand: Optional[str] = Query(None, description="Filter by brand name (case-insensitive)"),
-    origin: Optional[str] = Query(None, description="Filter by provenance: seeded | scraped | imported"),
+    origin: Optional[str] = Query(None, description="Filter by provenance: reference | scraped | imported"),
     currency: Optional[str] = Query(None, description="Filter by currency: EUR | TND"),
     search: Optional[str] = Query(None, description="Search by brand or model name (case-insensitive)"),
     sort: Optional[str] = Query(None, description="Sort order: price_asc | price_desc | newest"),
@@ -737,8 +779,9 @@ def list_articles(
     categories: Optional[str] = Query(None, description="Comma-separated list of categories, e.g. Automotive,EV,Market"),
     region: Optional[str] = Query(None, description="Region filter: TN | EU (also matches Europe) | Global"),
     search: Optional[str] = Query(None, description="Keyword search in article title (case-insensitive)"),
-    origin: Optional[str] = Query(None, description="Filter by provenance: seeded | scraped | imported"),
+    origin: Optional[str] = Query(None, description="Filter by provenance: reference | scraped | imported"),
     relevant_only: bool = Query(False, description="When true, restrict to articles with automotive/insurance/economy keywords in title"),
+    sort: Optional[str] = Query("recent", description="Sort order: 'recent' (publication_date DESC) or 'category'"),
 ):
     """Paginated market-trend articles, newest first. Filterable by category, region, origin, and keyword search."""
     from sqlalchemy import or_
@@ -776,10 +819,16 @@ def list_articles(
         if relevant_only:
             q = q.filter(or_(*[MarketTrendArticle.title.ilike(f"%{kw}%") for kw in _RELEVANCE_KEYWORDS]))
         total = q.count()
-        rows = q.order_by(
-            MarketTrendArticle.publication_date.desc().nullslast(),
-            MarketTrendArticle.scraped_at.desc(),
-        ).offset(offset).limit(limit).all()
+        if sort == "category":
+            rows = q.order_by(
+                MarketTrendArticle.category.asc().nullslast(),
+                MarketTrendArticle.publication_date.desc().nullslast(),
+            ).offset(offset).limit(limit).all()
+        else:
+            rows = q.order_by(
+                MarketTrendArticle.publication_date.desc().nullslast(),
+                MarketTrendArticle.scraped_at.desc(),
+            ).offset(offset).limit(limit).all()
         return PagedResponse(
             total=total,
             limit=limit,
@@ -1302,10 +1351,10 @@ class PricingSummaryOut(BaseModel):
 # GET /api/dashboard/summary
 # ---------------------------------------------------------------------------
 
-@app.get("/api/data/provenance", tags=["data"], summary="Seeded vs scraped record counts per entity type")
+@app.get("/api/data/provenance", tags=["data"], summary="Reference vs scraped record counts per entity type")
 def data_provenance():
     """
-    Returns counts of records by data_origin (seeded | scraped | imported)
+    Returns counts of records by data_origin (reference | scraped | imported)
     for the five main domain tables.  Used by the dashboard to distinguish
     demo data from real intelligence.
     """
@@ -1315,18 +1364,24 @@ def data_provenance():
             rows = session.query(col, func.count()).group_by(col).all()
             return {r[0]: r[1] for r in rows}
 
+        def _raw_origins(table: str) -> dict:
+            rows = session.execute(
+                text(f"SELECT data_origin, COUNT(*) FROM {table} GROUP BY data_origin")  # noqa: S608
+            ).fetchall()
+            return {r[0]: r[1] for r in rows}
+
         return {
-            "car_reviews":         _origins(CarReview),
-            "insurance_reviews":   _origins(InsuranceReview),
-            "car_listings":        _origins(CarListing),
-            "market_articles":     _origins(MarketTrendArticle),
-            "competitor_pricings": _origins(CompetitorPricing),
+            "car_reviews":            _origins(CarReview),
+            "insurance_reviews":      _origins(InsuranceReview),
+            "car_listings":           _origins(CarListing),
+            "market_articles":        _origins(MarketTrendArticle),
+            "competitor_pricings":    _origins(CompetitorPricing),
+            "company_action_signals": _raw_origins("company_action_signals"),
+            "company_tech_stack":     _raw_origins("company_tech_stack"),
             "nlp_models": {
                 row[0]: row[1]
                 for row in session.execute(
-                    __import__("sqlalchemy").text(
-                        "SELECT model_version, COUNT(*) FROM article_nlp_results GROUP BY model_version"
-                    )
+                    text("SELECT model_version, COUNT(*) FROM article_nlp_results GROUP BY model_version")
                 ).fetchall()
             },
         }
@@ -1473,6 +1528,801 @@ def list_opportunities(
         return results
 
 
+class V2OpportunityResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    entity_name: str
+    entity_type: str
+    entity_id: UUID
+    region: Optional[str]
+    # V1 baseline for comparison
+    v1_overall_score: float
+    v1_signal_strength: str
+    # V2 axes
+    v2_pain_score: Optional[float]
+    v2_recovery_score: Optional[float]
+    v2_erp_fit_score: Optional[float]
+    v2_reachability_score: Optional[float]
+    v2_overall_score: Optional[float]
+    v2_tier: Optional[str]
+    v2_reasoning: Optional[Any]
+    v2_computed_at: Optional[datetime]
+
+
+class V2EvidenceItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    label: str
+    detail: Optional[str] = None
+    source_url: Optional[str] = None
+    source_name: Optional[str] = None
+    date: Optional[str] = None
+    confidence: Optional[str] = None
+    tag: Optional[str] = None  # "pain" | "article" | "action" | "bonus" | "penalty" | "neutral" | "profile"
+
+
+class V2ErpMatch(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    erp_name: str
+    vendor: str
+    relevance_score: int                    # 1–5 scale
+    fit_score: int                           # 0–10 sector fit (automotive or insurance)
+    automotive_fit_score: int
+    insurance_fit_score: int
+    matched_keyword: str                     # the keyword that triggered the match
+    match_source: str                        # human-readable reason
+    # Detail fields for the expandable catalog card
+    industries_strong_in: List[str]
+    key_modules: List[str]
+    notable_customers: List[str]
+    mena_africa_adoption: Optional[str]
+    top_pros: Optional[str]
+
+
+class V2EvidenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    entity_id: str
+    entity_name: str
+    entity_type: str
+    pain_evidence: List[V2EvidenceItem]
+    recovery_evidence: List[V2EvidenceItem]
+    erp_fit_evidence: List[V2EvidenceItem]
+    erp_catalog_matches: List[V2ErpMatch]   # matched rows from teamwill_erp_solutions
+    erp_profile_sources: List[str]           # URLs from company_profile.source_urls
+    reachability_evidence: List[V2EvidenceItem]
+
+
+@app.get(
+    "/api/opportunities/v2",
+    response_model=List[V2OpportunityResponse],
+    tags=["opportunities"],
+    summary="V2 ranked opportunities with four-axis reasoning",
+)
+def list_v2_opportunities(
+    tier: Optional[str] = Query(None, description="engage | develop | watch | needs_investigation"),
+    min_score: Optional[float] = Query(None, ge=0, le=100, description="Minimum v2_overall_score"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """V2 four-axis opportunity leaderboard. Returns full reasoning JSONB for radar charts."""
+    with get_db_session() as session:
+        q = session.query(OpportunitySignal)
+        if tier:
+            q = q.filter(OpportunitySignal.v2_tier == tier)
+        if min_score is not None:
+            q = q.filter(OpportunitySignal.v2_overall_score >= min_score)
+        rows = (
+            q.order_by(OpportunitySignal.v2_overall_score.desc().nullslast())
+            .limit(limit)
+            .all()
+        )
+        return [
+            V2OpportunityResponse(
+                entity_name=r.entity_name,
+                entity_type=r.entity_type,
+                entity_id=r.entity_id,
+                region=r.region,
+                v1_overall_score=float(r.overall_score),
+                v1_signal_strength=r.signal_strength,
+                v2_pain_score=float(r.v2_pain_score) if r.v2_pain_score is not None else None,
+                v2_recovery_score=float(r.v2_recovery_score) if r.v2_recovery_score is not None else None,
+                v2_erp_fit_score=float(r.v2_erp_fit_score) if r.v2_erp_fit_score is not None else None,
+                v2_reachability_score=float(r.v2_reachability_score) if r.v2_reachability_score is not None else None,
+                v2_overall_score=float(r.v2_overall_score) if r.v2_overall_score is not None else None,
+                v2_tier=r.v2_tier,
+                v2_reasoning=r.v2_reasoning,
+                v2_computed_at=r.v2_computed_at,
+            )
+            for r in rows
+        ]
+
+
+@app.get(
+    "/api/opportunities/v2/{entity_id}/evidence",
+    response_model=V2EvidenceResponse,
+    tags=["opportunities"],
+    summary="Per-axis evidence links for the V2 radar explainer",
+)
+def get_v2_evidence(entity_id: UUID):
+    """
+    Returns four evidence buckets backing the V2 axis scores.
+    Used by the Radar Modal to show clickable source links per axis.
+    """
+    with get_db_session() as session:
+        sig = (
+            session.query(OpportunitySignal)
+            .filter(OpportunitySignal.entity_id == entity_id)
+            .first()
+        )
+        if not sig:
+            raise HTTPException(status_code=404, detail="No V2 signal found for this entity")
+
+        eid_str   = str(entity_id)
+        ent_type  = sig.entity_type
+        ent_name  = sig.entity_name
+        reasoning = sig.v2_reasoning or {}
+
+        def _iso(d) -> Optional[str]:
+            if d is None:
+                return None
+            return d.isoformat() if hasattr(d, "isoformat") else str(d)
+
+        # ── Pain: negative reviews + keyword-matched articles ────────────
+        pain_items: List[Dict[str, Any]] = []
+
+        if ent_type == "brand":
+            rev_rows = session.execute(text("""
+                SELECT cr.source_url, cr.rating, cr.review_title, cr.review_date
+                FROM car_reviews cr
+                JOIN car_models cm ON cr.model_id = cm.id
+                WHERE cm.brand_id = CAST(:eid AS uuid)
+                  AND cr.data_origin = 'scraped'
+                  AND cr.rating <= 2
+                ORDER BY cr.review_date DESC NULLS LAST
+                LIMIT 5
+            """), {"eid": eid_str}).fetchall()
+        else:
+            rev_rows = session.execute(text("""
+                SELECT source_url, rating, review_title, review_date
+                FROM insurance_reviews
+                WHERE company_id = CAST(:eid AS uuid)
+                  AND data_origin = 'scraped'
+                  AND rating <= 2
+                ORDER BY review_date DESC NULLS LAST
+                LIMIT 5
+            """), {"eid": eid_str}).fetchall()
+
+        for r in rev_rows:
+            pain_items.append({
+                "label": r.review_title or f"Review · {r.rating}/5",
+                "detail": f"Rating: {r.rating}/5",
+                "source_url": r.source_url,
+                "date": _iso(r.review_date),
+                "tag": "pain",
+            })
+
+        art_rows = session.execute(text("""
+            SELECT title, source_url, publication_date
+            FROM market_trend_articles
+            WHERE LOWER(title) LIKE '%' || LOWER(:name) || '%'
+              AND data_origin = 'scraped'
+            ORDER BY publication_date DESC NULLS LAST
+            LIMIT 5
+        """), {"name": ent_name}).fetchall()
+
+        for a in art_rows:
+            pain_items.append({
+                "label": a.title,
+                "source_url": a.source_url,
+                "date": _iso(a.publication_date),
+                "tag": "article",
+            })
+
+        # ── Recovery: scraped action signals ─────────────────────────────
+        action_rows = session.execute(text("""
+            SELECT headline, signal_type, signal_date, confidence, source_url, source_name
+            FROM company_action_signals
+            WHERE entity_id = :eid
+              AND polarity = 'action_taken'
+              AND data_origin = 'scraped'
+            ORDER BY signal_date DESC
+        """), {"eid": eid_str}).fetchall()
+
+        recovery_items: List[Dict[str, Any]] = [
+            {
+                "label": a.headline,
+                "detail": (a.signal_type or "").replace("_", " ").title() or None,
+                "source_url": a.source_url,
+                "source_name": a.source_name,
+                "date": _iso(a.signal_date),
+                "confidence": a.confidence,
+                "tag": "action",
+            }
+            for a in action_rows
+        ]
+
+        # ── ERP Fit: sub-segment profile + catalog matches ────────────────
+        import re as _re
+
+        erp_reasoning = (reasoning.get("axes") or {}).get("erp_fit") or {}
+        sub_seg = erp_reasoning.get("sub_segment") or ""
+        hq      = erp_reasoning.get("headquarters_country") or ""
+
+        erp_items: List[Dict[str, Any]] = []
+        if sub_seg:
+            erp_items.append({"label": f"Sub-segment: {sub_seg}", "tag": "profile"})
+        if hq:
+            erp_items.append({"label": f"HQ: {hq}", "tag": "profile"})
+        if erp_reasoning.get("sofico_keyword_hit"):
+            erp_items.append({"label": "Sofico keyword match (+35 boost)", "tag": "bonus"})
+        geo_bonus = erp_reasoning.get("geo_bonus") or 0
+        if geo_bonus > 0:
+            erp_items.append({"label": f"Geographic bonus: +{geo_bonus:.0f} (TEAMWILL territory)", "tag": "bonus"})
+
+        # ── ERP catalog matching — multi-keyword search ──────────────────
+        # Extract meaningful tokens from sub_segment + add entity-type base keyword.
+        # This is wider than the scorer's ILIKE because here we want to explain
+        # the match to a human, so we cast a broad net and let fit_score sort.
+        _SKIP_WORDS = {
+            "and", "the", "for", "of", "in", "a", "an", "is", "are",
+            "first", "private", "insurer", "company", "group", "holding",
+        }
+
+        def _extract_keywords(seg: str, etype: str) -> List[str]:
+            base = [etype]                                  # "insurance" or "brand"
+            tokens = _re.split(r"[\+\-/,&\(\)\s]+", seg)
+            for t in tokens:
+                t = t.strip()
+                if len(t) >= 3 and t.lower() not in _SKIP_WORDS:
+                    base.append(t)
+            return list(dict.fromkeys(base))[:8]           # deduplicate, cap at 8
+
+        search_keywords = _extract_keywords(sub_seg, ent_type)
+
+        # Fetch every ERP that matches at least one keyword; track which keyword hit
+        seen_erp_ids: Dict[str, str] = {}   # erp_name → first matched keyword
+        for kw in search_keywords:
+            rows_kw = session.execute(text("""
+                SELECT erp_name, vendor, teamwill_relevance_score,
+                       automotive_fit_score, insurance_fit_score
+                FROM teamwill_erp_solutions
+                WHERE industries_strong_in::text ILIKE '%' || :kw || '%'
+                  AND teamwill_relevance_score >= 3
+                ORDER BY teamwill_relevance_score DESC, erp_name
+                LIMIT 6
+            """), {"kw": kw}).fetchall()
+            for row in rows_kw:
+                if row.erp_name not in seen_erp_ids:
+                    seen_erp_ids[row.erp_name] = kw
+
+        # Also check Sofico Miles explicitly (it matches on sub_segment keywords,
+        # not on industries_strong_in which lists automotive/leasing verticals)
+        if erp_reasoning.get("sofico_keyword_hit") and "Sofico Miles" not in seen_erp_ids:
+            sofico_kws = ["captive", "leasing", "fleet", "auto finance", "mobility"]
+            matched_sofico_kw = next(
+                (kw for kw in sofico_kws if kw in sub_seg.lower()),
+                "Sofico keyword"
+            )
+            seen_erp_ids["Sofico Miles"] = matched_sofico_kw
+
+        # Fetch full records for all matched ERPs, sorted by fit then relevance
+        erp_catalog_matches: List[V2ErpMatch] = []
+        if seen_erp_ids:
+            names_list = list(seen_erp_ids.keys())
+            placeholders = ", ".join(f":n{i}" for i in range(len(names_list)))
+            params: Dict[str, Any] = {f"n{i}": n for i, n in enumerate(names_list)}
+            params["etype"] = ent_type
+            full_rows = session.execute(text(f"""
+                SELECT erp_name, vendor, teamwill_relevance_score,
+                       automotive_fit_score, insurance_fit_score,
+                       industries_strong_in, key_modules, notable_customers,
+                       mena_africa_adoption, top_pros
+                FROM teamwill_erp_solutions
+                WHERE erp_name IN ({placeholders})
+                  AND CASE WHEN :etype = 'brand'
+                           THEN automotive_fit_score ELSE insurance_fit_score END >= 3
+                ORDER BY
+                    CASE WHEN :etype = 'brand'     THEN automotive_fit_score
+                                                   ELSE insurance_fit_score END DESC NULLS LAST,
+                    teamwill_relevance_score DESC NULLS LAST
+                LIMIT 5
+            """), params).fetchall()
+
+            _rel_labels = {5: "certified TEAMWILL partner", 4: "high relevance", 3: "medium relevance"}
+
+            for row in full_rows:
+                fit = int(row.automotive_fit_score or 0) if ent_type == "brand" else int(row.insurance_fit_score or 0)
+                kw  = seen_erp_ids.get(row.erp_name, "keyword match")
+                rel = int(row.teamwill_relevance_score or 0)
+                rel_label = _rel_labels.get(rel, "")
+                match_src = (
+                    f'Sofico/leasing keyword "{kw}" in sub-segment'
+                    if row.erp_name == "Sofico Miles"
+                    else f'Keyword "{kw}" in sub-segment matched ERP\'s target industries'
+                )
+                def _to_str_list(v) -> List[str]:
+                    if isinstance(v, list):
+                        return [str(x) for x in v]
+                    return []
+
+                erp_catalog_matches.append(V2ErpMatch(
+                    erp_name=row.erp_name,
+                    vendor=row.vendor,
+                    relevance_score=rel,
+                    fit_score=fit,
+                    automotive_fit_score=int(row.automotive_fit_score or 0),
+                    insurance_fit_score=int(row.insurance_fit_score or 0),
+                    matched_keyword=kw,
+                    match_source=f"{match_src}{' · ' + rel_label if rel_label else ''}",
+                    industries_strong_in=_to_str_list(row.industries_strong_in),
+                    key_modules=_to_str_list(row.key_modules)[:8],
+                    notable_customers=_to_str_list(row.notable_customers)[:6],
+                    mena_africa_adoption=row.mena_africa_adoption or None,
+                    top_pros=row.top_pros or None,
+                ))
+
+        # ── Reachability: scraped tech stack records ──────────────────────
+        tech_rows = session.execute(text("""
+            SELECT vendor, product, evidence_excerpt, confidence,
+                   source_url, source_name, detected_date
+            FROM company_tech_stack
+            WHERE entity_id = :eid
+              AND data_origin = 'scraped'
+            ORDER BY detected_date DESC NULLS LAST
+        """), {"eid": eid_str}).fetchall()
+
+        reach_axis   = (reasoning.get("axes") or {}).get("reachability") or {}
+        raw_penalties = reach_axis.get("penalties") or []
+        raw_bonuses   = reach_axis.get("bonuses") or []
+
+        def _reach_tag(vendor: str) -> tuple:
+            vl = vendor.lower()
+            for p in raw_penalties:
+                if vl in p.lower():
+                    return "penalty", p
+            for b in raw_bonuses:
+                if vl in b.lower():
+                    return "bonus", b
+            return "neutral", None
+
+        reach_items: List[Dict[str, Any]] = []
+        for t in tech_rows:
+            tag, label_detail = _reach_tag(t.vendor or "")
+            reach_items.append({
+                "label": t.vendor or "Unknown vendor",
+                "detail": label_detail or t.evidence_excerpt,
+                "source_url": t.source_url,
+                "source_name": t.source_name,
+                "date": _iso(t.detected_date),
+                "confidence": t.confidence,
+                "tag": tag,
+            })
+
+        # ── ERP profile sources: URLs from company_profile.source_urls ───
+        profile_row = session.execute(text("""
+            SELECT source_urls
+            FROM company_profile
+            WHERE entity_id = :eid
+            LIMIT 1
+        """), {"eid": eid_str}).fetchone()
+
+        erp_profile_sources: List[str] = []
+        if profile_row and profile_row.source_urls:
+            raw = profile_row.source_urls
+            # source_urls may be stored as a Python list (JSONB) or a JSON string
+            if isinstance(raw, list):
+                erp_profile_sources = [u for u in raw if isinstance(u, str) and u.startswith("http")]
+            elif isinstance(raw, str):
+                import json as _json
+                try:
+                    parsed = _json.loads(raw)
+                    erp_profile_sources = [u for u in parsed if isinstance(u, str) and u.startswith("http")]
+                except Exception:
+                    pass
+
+        return V2EvidenceResponse(
+            entity_id=eid_str,
+            entity_name=ent_name,
+            entity_type=ent_type,
+            pain_evidence=[V2EvidenceItem(**i) for i in pain_items],
+            recovery_evidence=[V2EvidenceItem(**i) for i in recovery_items],
+            erp_fit_evidence=[V2EvidenceItem(**i) for i in erp_items],
+            erp_catalog_matches=erp_catalog_matches,
+            erp_profile_sources=erp_profile_sources,
+            reachability_evidence=[V2EvidenceItem(**i) for i in reach_items],
+        )
+
+
+# ---------------------------------------------------------------------------
+# ERP Sales Brief endpoint — Groq-powered pitch recommendation
+# NOTE: must be registered BEFORE /{entity_id} to avoid route shadowing
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/opportunities/{entity_id}/erp-brief",
+    tags=["opportunities"],
+    summary="AI-generated ERP sales brief for a prospect (Groq LLaMA-3.3-70B)",
+)
+def get_erp_brief(entity_id: UUID):
+    """
+    Fetches entity pain data, top-3 matched ERPs, and relevant competitors,
+    then calls Groq LLaMA-3.3-70B to produce a ranked sales brief as JSON.
+    Attaches raw ERP score metadata in _metadata for the frontend evidence row.
+    """
+    import json as _json
+
+    eid_str = str(entity_id)
+
+    with get_db_session() as session:
+        sig = session.execute(text("""
+            SELECT entity_name, entity_type, company_state,
+                   ceo_name, ceo_appointment_date, is_hiring_aggressively,
+                   key_hiring_roles, top_complaint_types,
+                   v2_pain_score, v2_recovery_score,
+                   overall_score, v2_overall_score,
+                   intervention_level, outreach_timing
+            FROM opportunity_signals
+            WHERE entity_id = :eid
+            LIMIT 1
+        """), {"eid": eid_str}).fetchone()
+
+        if not sig:
+            raise HTTPException(status_code=404, detail="Entity not found")
+
+        ent_type = sig.entity_type
+
+        try:
+            profile = session.execute(text("""
+                SELECT sub_segment, parent_company, headquarters_country, employee_count_range
+                FROM company_profile
+                WHERE entity_id = :eid
+                LIMIT 1
+            """), {"eid": eid_str}).fetchone()
+        except Exception:
+            profile = None
+
+        try:
+            signal_rows = session.execute(text("""
+                SELECT headline, signal_type, signal_date
+                FROM company_action_signals
+                WHERE entity_id = :eid
+                ORDER BY signal_date DESC NULLS LAST
+                LIMIT 3
+            """), {"eid": eid_str}).fetchall()
+        except Exception:
+            signal_rows = []
+
+        fit_col = "automotive_fit_score" if ent_type == "brand" else "insurance_fit_score"
+        try:
+            erp_rows = session.execute(text(f"""
+                SELECT erp_name, vendor, key_modules, notable_customers,
+                       top_pros, automotive_fit_score, insurance_fit_score,
+                       teamwill_relevance_score, mena_africa_adoption,
+                       industries_strong_in
+                FROM teamwill_erp_solutions
+                WHERE teamwill_relevance_score >= 3
+                ORDER BY {fit_col} DESC NULLS LAST,
+                         teamwill_relevance_score DESC NULLS LAST
+                LIMIT 3
+            """)).fetchall()
+        except Exception:
+            erp_rows = []
+
+        try:
+            comp_rows = session.execute(text("""
+                SELECT company_name, competitor_tier, overlap_with_teamwill_score,
+                       erp_partnerships, primary_services
+                FROM teamwill_competitors
+                WHERE overlap_with_teamwill_score >= 4
+                ORDER BY overlap_with_teamwill_score DESC NULLS LAST
+                LIMIT 5
+            """)).fetchall()
+        except Exception:
+            # Fallback: try without erp_partnerships in case column schema differs
+            try:
+                comp_rows = session.execute(text("""
+                    SELECT company_name, competitor_tier, overlap_with_teamwill_score,
+                           NULL AS erp_partnerships, primary_services
+                    FROM teamwill_competitors
+                    WHERE overlap_with_teamwill_score >= 4
+                    ORDER BY overlap_with_teamwill_score DESC NULLS LAST
+                    LIMIT 5
+                """)).fetchall()
+            except Exception:
+                comp_rows = []
+
+    def _to_list(v):
+        if isinstance(v, list):
+            return [str(x) for x in v]
+        if isinstance(v, str):
+            try:
+                parsed = _json.loads(v)
+                return [str(x) for x in parsed] if isinstance(parsed, list) else [v]
+            except Exception:
+                return [x.strip() for x in v.split(",") if x.strip()]
+        return []
+
+    def _ls(lst, limit=8):
+        if not lst:
+            return "none"
+        return ", ".join(str(x) for x in list(lst)[:limit])
+
+    complaints = _to_list(sig.top_complaint_types) if sig.top_complaint_types else []
+
+    signals_text = "\n".join(
+        f"  - [{s.signal_date}] {s.signal_type}: {s.headline}"
+        for s in signal_rows
+    ) or "  (no recent signals)"
+
+    erps_text = ""
+    for e in erp_rows:
+        erps_text += f"""
+ERP: {e.erp_name} by {e.vendor}
+  Automotive fit: {e.automotive_fit_score}/10 | Insurance fit: {e.insurance_fit_score}/10 | TEAMWILL relevance: {e.teamwill_relevance_score}/5
+  Industries served: {_ls(_to_list(e.industries_strong_in))}
+  Key modules: {_ls(_to_list(e.key_modules))}
+  Notable customers: {_ls(_to_list(e.notable_customers))}
+  Top strengths: {e.top_pros or 'n/a'}
+  MENA adoption: {e.mena_africa_adoption or 'n/a'}
+"""
+
+    competitors_text = "\n".join(
+        f"  - {c.company_name} ({c.competitor_tier or 'unknown'}, overlap {c.overlap_with_teamwill_score}/5)\n"
+        f"    Implements: {_ls(_to_list(c.erp_partnerships))}\n"
+        f"    Services: {c.primary_services or 'n/a'}"
+        for c in comp_rows
+    ) or "  (none identified)"
+
+    system_prompt = (
+        "You are a senior ERP sales strategist at TEAMWILL, a specialized consulting firm "
+        "certified on Sofico Miles for automotive finance/leasing and active across Europe, "
+        "Tunisia, and MENA. Your job is to analyze a prospect company and produce a ranked "
+        "ERP recommendation brief that a sales rep can use immediately.\n\n"
+        "TEAMWILL's core differentiators:\n"
+        "- Certified Sofico Miles partner (automotive finance/leasing/captive — unique in the market)\n"
+        "- 11-country presence (France, Tunisia, Morocco, Spain, UK, Belgium, Germany, Portugal, Singapore, US, Italy)\n"
+        "- Deep credit & asset finance domain (NOT a generalist consulting firm)\n"
+        "- Mid-market speed: faster implementation than Tier 1 giants (Capgemini, Accenture)\n\n"
+        "REASONING CHAIN you must follow for each ERP:\n"
+        "Step 1: What is the REAL operational problem behind the complaint types? (Not the symptom — the root workflow breakdown)\n"
+        "Step 2: Which specific modules of this ERP address that root problem?\n"
+        "Step 3: Are there notable customers of this ERP that are direct industry peers of the prospect?\n"
+        "Step 4: Does the prospect's company_state or recent signals create a buying window?\n"
+        "Step 5: What is TEAMWILL's specific advantage selling this ERP vs Capgemini or BearingPoint?\n\n"
+        "BANNED phrases: 'optimize operations', 'streamline processes', 'industry-leading', "
+        "'robust solution', 'key features', 'comprehensive platform', 'leverage synergies', "
+        "'best-in-class', 'end-to-end solution'\n\n"
+        "OUTPUT FORMAT — respond ONLY with valid JSON, no markdown, no preamble:\n"
+        '{"top_pick":{"erp_name":"...","rank":1,"verdict":"2-3 sentences. Specific. Uses real complaint types, real peer customers. No generic language.","tags":["3-4 short tags"],"opening_line":"One sentence referencing a real peer customer.","peer_customers":["names from notable_customers that are sector peers"],"teamwill_advantage":"1 sentence. Why TEAMWILL beats competitors for this specific prospect."},'
+        '"alternative":{"erp_name":"...","rank":2,"verdict":"1-2 sentences. When to use this instead.","why_ranked_lower":"1 sentence.","tags":["2-3 tags"]},'
+        '"competitor_alerts":[{"company_name":"...","tier":"...","threat":"1 sentence. Specific threat + how TEAMWILL counters it."}],'
+        '"avoid":{"erp_name":"...","reason":"1 sentence. Why skip this despite the fit score."}}'
+    )
+
+    user_message = (
+        f"PROSPECT: {sig.entity_name}\n"
+        f"Type: {ent_type} | HQ: {profile.headquarters_country if profile else 'Unknown'}\n"
+        f"Sub-segment: {profile.sub_segment if profile else 'Unknown'} | Parent: {profile.parent_company if profile else 'None'}\n"
+        f"Employee range: {profile.employee_count_range if profile else 'Unknown'}\n\n"
+        f"COMPANY STATE: {sig.company_state or 'Unknown'}\n"
+        f"CEO: {sig.ceo_name or 'Unknown'} (appointed {sig.ceo_appointment_date.isoformat() if sig.ceo_appointment_date else 'unknown date'})\n"
+        f"Hiring aggressively: {sig.is_hiring_aggressively}\n"
+        f"Key roles being filled: {sig.key_hiring_roles or 'none specified'}\n\n"
+        f"PAIN DATA:\n"
+        f"Top complaint types: {_ls(complaints)}\n"
+        f"Pain score: {float(sig.v2_pain_score or 0):.1f}/35 | Recovery score: {float(sig.v2_recovery_score or 0):.1f}/25\n"
+        f"Overall opportunity score: {float(sig.v2_overall_score or sig.overall_score or 0):.1f}\n"
+        f"Intervention level: {sig.intervention_level or '—'}\n\n"
+        f"RECENT SIGNALS:\n{signals_text}\n\n"
+        f"MATCHED ERP CATALOG (top 3 by fit score):\n{erps_text}\n"
+        f"COMPETITORS WHO MAY BE IN THIS ACCOUNT:\n{competitors_text}\n\n"
+        f"Now apply the reasoning chain and produce the JSON brief."
+    )
+
+    groq_key = os.environ.get("GROQ_API_KEY", "")
+    if not groq_key:
+        raise HTTPException(status_code=503, detail="GROQ_API_KEY not configured")
+
+    try:
+        from groq import Groq as _Groq
+        _gc = _Groq(api_key=groq_key)
+        resp = _gc.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_message},
+            ],
+            max_tokens=2048,
+            temperature=0.25,
+            top_p=0.85,
+        )
+        raw = resp.choices[0].message.content.strip()
+        # Strip markdown code fences if the model wraps the JSON
+        if raw.startswith("```"):
+            raw = "\n".join(raw.split("\n")[1:])
+        if raw.endswith("```"):
+            raw = "\n".join(raw.split("\n")[:-1])
+        brief = _json.loads(raw.strip())
+    except _json.JSONDecodeError as exc:
+        raise HTTPException(status_code=502, detail=f"LLM returned invalid JSON: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Groq call failed: {exc}")
+
+    # Attach raw ERP scores so the frontend can render the evidence row
+    brief["_metadata"] = {
+        "entity_name": sig.entity_name,
+        "entity_type": ent_type,
+        "erp_scores": {
+            e.erp_name: {
+                "automotive_fit": int(e.automotive_fit_score or 0),
+                "insurance_fit":  int(e.insurance_fit_score  or 0),
+                "teamwill_relevance": int(e.teamwill_relevance_score or 0),
+                "mena_adoption": e.mena_africa_adoption or "—",
+                "notable_customers": _to_list(e.notable_customers),
+            }
+            for e in erp_rows
+        },
+    }
+
+    return brief
+
+
+# ---------------------------------------------------------------------------
+# Company Intelligence endpoint — must be registered BEFORE /{entity_id}
+# ---------------------------------------------------------------------------
+
+class ActionSignalOut(BaseModel):
+    signal_type: Optional[str]
+    signal_date: Optional[str]
+    headline: Optional[str]
+    summary: Optional[str]
+    source_url: Optional[str]
+    source_name: Optional[str]
+    polarity: Optional[str]
+
+
+class SentimentTrendOut(BaseModel):
+    period_date: str
+    negative_count: int
+    positive_count: int
+    neutral_count: int
+
+
+class IntelligenceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    entity_name: str
+    entity_type: str
+    entity_id: UUID
+    region: Optional[str]
+    overall_score: float
+    signal_strength: str
+    top_complaint_types: Optional[List[str]]
+    v2_pain_score: Optional[float]
+    v2_recovery_score: Optional[float]
+    v2_erp_fit_score: Optional[float]
+    v2_reachability_score: Optional[float]
+    v2_overall_score: Optional[float]
+    v2_tier: Optional[str]
+    v2_reasoning: Optional[Any]
+    company_state: Optional[str] = None
+    ceo_name: Optional[str] = None
+    ceo_appointment_date: Optional[Any] = None
+    is_hiring_aggressively: Optional[bool] = None
+    open_roles_estimate: Optional[int] = None
+    key_hiring_roles: Optional[str] = None
+    intervention_level: Optional[str] = None
+    outreach_timing: Optional[str] = None
+    trend_direction: Optional[str] = None
+    intervention_brief: Optional[Any] = None
+    recent_signals: List[ActionSignalOut] = []
+    sentiment_trend: List[SentimentTrendOut] = []
+
+
+@app.get(
+    "/api/opportunities/intelligence",
+    response_model=List[IntelligenceOut],
+    tags=["opportunities"],
+    summary="Full entity intelligence: scores + company state + signals + sentiment",
+)
+def list_intelligence():
+    """Returns all entities with opportunity scores, company intelligence columns,
+    last-5 action signals, and last-6-months sentiment trend."""
+    with get_db_session() as session:
+        opp_rows = session.execute(text("""
+            SELECT
+                entity_id, entity_name, entity_type, region,
+                overall_score, signal_strength, top_complaint_types,
+                v2_pain_score, v2_recovery_score, v2_erp_fit_score,
+                v2_reachability_score, v2_overall_score, v2_tier, v2_reasoning,
+                company_state, ceo_name, ceo_appointment_date,
+                is_hiring_aggressively, open_roles_estimate, key_hiring_roles,
+                intervention_level, outreach_timing, score_reasoning,
+                intervention_brief,
+                COALESCE(
+                    trend_direction,
+                    score_reasoning->'trend'->>'direction'
+                ) AS trend_direction
+            FROM opportunity_signals
+            ORDER BY COALESCE(v2_overall_score, overall_score) DESC NULLS LAST
+        """)).fetchall()
+
+        if not opp_rows:
+            return []
+
+        entity_ids = [str(r.entity_id) for r in opp_rows]
+
+        signals_rows = session.execute(text("""
+            SELECT
+                s.entity_id::text AS entity_id,
+                s.signal_type,
+                s.signal_date::text AS signal_date,
+                s.headline, s.summary, s.source_url, s.source_name, s.polarity
+            FROM company_action_signals s
+            INNER JOIN (
+                SELECT entity_id, signal_date
+                FROM (
+                    SELECT entity_id, signal_date,
+                           ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY signal_date DESC NULLS LAST) AS rn
+                    FROM company_action_signals
+                    WHERE entity_id::text = ANY(:eids)
+                ) ranked
+                WHERE rn <= 5
+            ) top ON top.entity_id = s.entity_id AND top.signal_date = s.signal_date
+            ORDER BY s.entity_id, s.signal_date DESC NULLS LAST
+        """), {"eids": entity_ids}).fetchall()
+
+        signals_by_entity: Dict[str, List[ActionSignalOut]] = {}
+        for sg in signals_rows:
+            signals_by_entity.setdefault(sg.entity_id, []).append(ActionSignalOut(
+                signal_type=sg.signal_type, signal_date=sg.signal_date,
+                headline=sg.headline, summary=sg.summary,
+                source_url=sg.source_url, source_name=sg.source_name, polarity=sg.polarity,
+            ))
+
+        brand_entity_ids = [str(r.entity_id) for r in opp_rows if r.entity_type == "brand"]
+        sentiment_by_entity: Dict[str, List[SentimentTrendOut]] = {}
+        if brand_entity_ids:
+            sentiment_rows = session.execute(text("""
+                SELECT brand_id::text AS entity_id,
+                       period_date::text AS period_date,
+                       negative_count, positive_count, neutral_count
+                FROM sentiment_trends
+                WHERE brand_id::text = ANY(:eids)
+                  AND period_date >= NOW() - INTERVAL '6 months'
+                ORDER BY brand_id, period_date ASC
+            """), {"eids": brand_entity_ids}).fetchall()
+            for st in sentiment_rows:
+                sentiment_by_entity.setdefault(st.entity_id, []).append(SentimentTrendOut(
+                    period_date=st.period_date,
+                    negative_count=st.negative_count,
+                    positive_count=st.positive_count,
+                    neutral_count=st.neutral_count,
+                ))
+
+        results = []
+        for r in opp_rows:
+            eid_str = str(r.entity_id)
+            results.append(IntelligenceOut(
+                entity_name=r.entity_name, entity_type=r.entity_type,
+                entity_id=r.entity_id, region=r.region,
+                overall_score=float(r.overall_score), signal_strength=r.signal_strength,
+                top_complaint_types=r.top_complaint_types,
+                v2_pain_score=float(r.v2_pain_score) if r.v2_pain_score is not None else None,
+                v2_recovery_score=float(r.v2_recovery_score) if r.v2_recovery_score is not None else None,
+                v2_erp_fit_score=float(r.v2_erp_fit_score) if r.v2_erp_fit_score is not None else None,
+                v2_reachability_score=float(r.v2_reachability_score) if r.v2_reachability_score is not None else None,
+                v2_overall_score=float(r.v2_overall_score) if r.v2_overall_score is not None else None,
+                v2_tier=r.v2_tier, v2_reasoning=r.v2_reasoning,
+                company_state=r.company_state, ceo_name=r.ceo_name,
+                ceo_appointment_date=str(r.ceo_appointment_date) if r.ceo_appointment_date else None,
+                is_hiring_aggressively=r.is_hiring_aggressively,
+                open_roles_estimate=r.open_roles_estimate, key_hiring_roles=r.key_hiring_roles,
+                intervention_level=r.intervention_level, outreach_timing=r.outreach_timing,
+                trend_direction=r.trend_direction,
+                intervention_brief=r.intervention_brief,
+                recent_signals=signals_by_entity.get(eid_str, []),
+                sentiment_trend=sentiment_by_entity.get(eid_str, []),
+            ))
+        return results
+
+
 @app.get(
     "/api/opportunities/{entity_id}",
     response_model=OpportunityOut,
@@ -1577,7 +2427,7 @@ def dashboard_summary():
 @app.get("/api/brands/summary", response_model=List[BrandSummaryOut], tags=["brands"],
          summary="All brands with review counts and latest reputation scores")
 def brands_summary(
-    origin: Optional[str] = Query(None, description="Provenance filter for analytics: all | seeded | scraped"),
+    origin: Optional[str] = Query(None, description="Provenance filter for analytics: all | reference | scraped"),
 ):
     """Brand leaderboard: review counts, average rating, latest sentiment score."""
     analytics_origin = origin or "all"
@@ -1710,6 +2560,7 @@ class CarModelDetailOut(BaseModel):
 
 class ArticleCategoryOut(BaseModel):
     category: str
+    label: str
     count: int
 
 
@@ -1805,7 +2656,133 @@ def article_categories():
             .order_by(func.count(MarketTrendArticle.id).desc())
             .all()
         )
-        return [ArticleCategoryOut(category=r.category, count=r.cnt) for r in rows]
+        return [
+            ArticleCategoryOut(
+                category=r.category,
+                label=_CATEGORY_LABELS.get((r.category or "").lower(), "General"),
+                count=r.cnt,
+            )
+            for r in rows
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Helpers for event field extraction
+# ---------------------------------------------------------------------------
+
+def _extract_event_location(title: str, body: str) -> str:
+    text = f"{title} {body}"
+    
+    # 1. Look for explicit Venue/Location
+    match = re.search(r'(?:Venue|Location):\s*([^.\n]+)', text, re.IGNORECASE)
+    if match:
+        loc = match.group(1).strip()
+        loc = re.sub(r',\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec).*$', '', loc, flags=re.IGNORECASE)
+        if 3 < len(loc) < 60:
+            return loc
+
+    # 2. Extract from title dashes
+    parts = re.split(r'[\u2014\u2013\uFFFD\-\|]', title)
+    parts = [p.strip() for p in parts if p.strip()]
+    if len(parts) >= 3:
+        potential = parts[1]
+        if not re.search(r'(january|february|march|april|may|june|july|august|september|october|november|december|q1|q2|q3|q4)', potential, re.IGNORECASE):
+            if len(potential) < 50:
+                return potential
+
+    # 3. Fallback to keywords
+    b = text.lower()
+    locations = [
+        ("nashville", "Nashville, TN"),
+        ("las vegas", "Las Vegas, NV"),
+        ("orlando", "Orlando, FL"),
+        ("san francisco", "San Francisco, CA"),
+        ("seattle", "Seattle, WA"),
+        ("birmingham", "Birmingham, UK"),
+        ("london", "London, UK"),
+        ("são paulo", "São Paulo, Brazil"),
+        ("sao paulo", "São Paulo, Brazil"),
+        ("chicago", "Chicago, IL"),
+        ("new york", "New York, NY"),
+        ("paris", "Paris, France"),
+        ("amsterdam", "Amsterdam, Netherlands"),
+        ("dubai", "Dubai, UAE"),
+        ("singapore", "Singapore"),
+        ("tunis", "Tunis, Tunisia"),
+        ("virtual", "Online"),
+        ("online", "Online"),
+    ]
+    for keyword, label in locations:
+        if keyword in b:
+            return label
+    return ""
+
+
+def _extract_event_audience(body: str) -> str:
+    b = body.lower()
+    if "cio" in b or "cto" in b:
+        return "C-Suite & Tech Leaders"
+    if "dealer" in b or "automotive" in b:
+        return "Automotive Professionals"
+    if "insurer" in b or "underwriting" in b or "claims" in b:
+        return "Insurance Leaders"
+    if "startup" in b or "founder" in b or " vc " in b:
+        return "Founders & Investors"
+    if "erp" in b or "sap" in b or "dynamics" in b:
+        return "ERP Practitioners"
+    if "consultant" in b:
+        return "Consultants"
+    return "Enterprise Professionals"
+
+
+class ArticleEventOut(ArticleOut):
+    days_until: int = 0
+    is_upcoming: bool = False
+    is_this_month: bool = False
+    is_past: bool = False
+    event_location: str = ""
+    event_audience: str = "Enterprise Professionals"
+
+    @model_validator(mode="after")
+    def _compute_event_fields(self) -> "ArticleEventOut":
+        if self.publication_date:
+            today = date.today()
+            self.days_until = (self.publication_date - today).days
+            self.is_upcoming = self.publication_date >= today
+            self.is_past = self.publication_date < today
+            self.is_this_month = (
+                self.publication_date.year == today.year
+                and self.publication_date.month == today.month
+            )
+        body = self.body_text or ""
+        self.event_location = _extract_event_location(self.title or "", body)
+        self.event_audience = _extract_event_audience(body)
+        return self
+
+
+# ---------------------------------------------------------------------------
+# GET /api/articles/events  — upcoming and recent events/conferences
+# ---------------------------------------------------------------------------
+
+@app.get("/api/articles/events", response_model=List[ArticleEventOut], tags=["articles"],
+         summary="Upcoming and recent professional events and conferences")
+def article_events():
+    """Returns seeded professional event articles, sorted by publication_date ASC."""
+    with get_db_session() as session:
+        rows = (
+            session.query(MarketTrendArticle)
+            .filter(
+                or_(
+                    MarketTrendArticle.data_origin == "seeded",
+                    MarketTrendArticle.category.ilike("forum")
+                ),
+                MarketTrendArticle.publication_date.isnot(None),
+                MarketTrendArticle.publication_date >= date.today()
+            )
+            .order_by(MarketTrendArticle.publication_date.asc())
+            .all()
+        )
+        return [ArticleEventOut.model_validate(r) for r in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -4916,3 +5893,560 @@ def insurance_company_profile(company_id: UUID):
             scoring_breakdown=scoring,
             data_note=data_note,
         )
+
+
+# ── Narrative Briefing Endpoints ───────────────────────────────────────────
+
+_BRIEFING_TEAMWILL_COUNTRIES = frozenset({
+    "France", "Tunisia", "Morocco", "Spain", "United Kingdom",
+    "Belgium", "Germany", "Portugal", "Singapore", "United States", "Italy",
+})
+
+
+class BriefingLeadOut(BaseModel):
+    entity_id: str
+    entity_name: str
+    entity_type: str
+    v2_overall_score: Optional[float] = None
+    v2_tier: Optional[str] = None
+    evidence_strength: Optional[str] = None
+    sub_segment: Optional[str] = None
+    parent_company: Optional[str] = None
+    headquarters_country: Optional[str] = None
+    teamwill_relationship: str
+    latest_action_headline: Optional[str] = None
+    latest_action_type: Optional[str] = None
+    latest_action_date: Optional[str] = None
+    latest_action_url: Optional[str] = None
+    source_urls: List[str] = []
+    is_fallback: bool = False
+    fallback_reason: Optional[str] = None
+    scorer_run_at: Optional[str] = None
+
+
+class BriefingThemeEntity(BaseModel):
+    entity_id: str
+    entity_name: str
+    entity_type: str
+    v2_tier: Optional[str] = None
+
+
+class BriefingThemeOut(BaseModel):
+    theme_id: str
+    title: str
+    narrative: str
+    entities: List[BriefingThemeEntity]
+    source_urls: List[str] = []
+
+
+class BriefingContrarianOut(BaseModel):
+    entity_id: str
+    entity_name: str
+    entity_type: str
+    v1_score: float
+    v2_score: Optional[float] = None
+    v2_tier: Optional[str] = None
+    top_penalty: Optional[str] = None
+    lock_in_vendor: Optional[str] = None
+    has_data: bool = True
+
+
+@app.get(
+    "/api/briefing/lead",
+    response_model=BriefingLeadOut,
+    tags=["briefing"],
+    summary="Lead entity for the narrative briefing page",
+)
+def briefing_lead():
+    """Primary lead-story entity: engage-tier + high evidence + Sofico or recent leadership change."""
+    with get_db_session() as session:
+        is_fallback = False
+        fallback_reason = None
+
+        row = session.execute(text("""
+            SELECT
+                o.entity_id::text AS entity_id,
+                o.entity_name,
+                o.entity_type,
+                o.v2_overall_score,
+                o.v2_tier,
+                o.v2_reasoning,
+                o.v2_computed_at
+            FROM opportunity_signals o
+            LEFT JOIN company_tech_stack ts
+                ON ts.entity_id = o.entity_id
+               AND ts.vendor ILIKE '%sofico%'
+            LEFT JOIN company_action_signals s
+                ON s.entity_id = o.entity_id
+               AND s.signal_type = 'leadership_change'
+               AND s.signal_date >= NOW() - INTERVAL '90 days'
+            WHERE o.v2_tier = 'engage'
+              AND o.v2_reasoning IS NOT NULL
+              AND (o.v2_reasoning->'data_quality'->>'evidence_strength' = 'high')
+              AND (ts.entity_id IS NOT NULL OR s.entity_id IS NOT NULL)
+            GROUP BY o.entity_id, o.entity_name, o.entity_type,
+                     o.v2_overall_score, o.v2_tier, o.v2_reasoning, o.v2_computed_at
+            ORDER BY o.v2_overall_score DESC NULLS LAST
+            LIMIT 1
+        """)).fetchone()
+
+        if row is None:
+            is_fallback = True
+            fallback_reason = (
+                "No entities currently meet the lead-story criteria "
+                "(engage tier + high evidence + active leadership signal OR Sofico relationship). "
+                "Showing highest-V2-score engage entity instead."
+            )
+            row = session.execute(text("""
+                SELECT entity_id::text AS entity_id, entity_name, entity_type,
+                       v2_overall_score, v2_tier, v2_reasoning, v2_computed_at
+                FROM opportunity_signals
+                WHERE v2_tier = 'engage' AND v2_overall_score IS NOT NULL
+                ORDER BY v2_overall_score DESC NULLS LAST
+                LIMIT 1
+            """)).fetchone()
+
+        if row is None:
+            return BriefingLeadOut(
+                entity_id="", entity_name="No data", entity_type="",
+                teamwill_relationship="",
+                is_fallback=True,
+                fallback_reason="No engage-tier entities found in the database.",
+            )
+
+        eid = row.entity_id
+        reasoning = row.v2_reasoning or {}
+        evidence_strength = (reasoning.get("data_quality") or {}).get("evidence_strength")
+
+        prof = session.execute(text("""
+            SELECT sub_segment, parent_company, headquarters_country, source_urls
+            FROM company_profile WHERE entity_id::text = :eid LIMIT 1
+        """), {"eid": eid}).fetchone()
+
+        sub_segment = prof.sub_segment if prof else None
+        parent_company = prof.parent_company if prof else None
+        hq_country = prof.headquarters_country if prof else None
+        profile_sources: list = (prof.source_urls or []) if prof else []
+
+        has_sofico = session.execute(text("""
+            SELECT 1 FROM company_tech_stack
+            WHERE entity_id::text = :eid AND vendor ILIKE '%sofico%' LIMIT 1
+        """), {"eid": eid}).fetchone()
+
+        if has_sofico:
+            teamwill_rel = "TEAMWILL is a Sofico-certified partner"
+        elif hq_country and hq_country in _BRIEFING_TEAMWILL_COUNTRIES:
+            teamwill_rel = f"TEAMWILL operates in {hq_country}"
+        else:
+            teamwill_rel = "TEAMWILL covers this market"
+
+        action = session.execute(text("""
+            SELECT headline, signal_type, signal_date, source_url
+            FROM company_action_signals
+            WHERE entity_id::text = :eid
+            ORDER BY signal_date DESC NULLS LAST
+            LIMIT 1
+        """), {"eid": eid}).fetchone()
+
+        axes = reasoning.get("axes") or {}
+        recovery_items = (axes.get("recovery") or {}).get("evidence_items") or []
+        seen_urls: set = set()
+        source_urls: list = []
+        for item in recovery_items:
+            url = item.get("source_url")
+            if url and url not in seen_urls:
+                source_urls.append(url)
+                seen_urls.add(url)
+        if action and action.source_url and action.source_url not in seen_urls:
+            source_urls.append(action.source_url)
+            seen_urls.add(action.source_url)
+        for url in profile_sources:
+            if url and url not in seen_urls:
+                source_urls.append(url)
+                seen_urls.add(url)
+        source_urls = source_urls[:3]
+
+        return BriefingLeadOut(
+            entity_id=eid,
+            entity_name=row.entity_name,
+            entity_type=row.entity_type,
+            v2_overall_score=float(row.v2_overall_score) if row.v2_overall_score is not None else None,
+            v2_tier=row.v2_tier,
+            evidence_strength=evidence_strength,
+            sub_segment=sub_segment,
+            parent_company=parent_company,
+            headquarters_country=hq_country,
+            teamwill_relationship=teamwill_rel,
+            latest_action_headline=action.headline if action else None,
+            latest_action_type=action.signal_type if action else None,
+            latest_action_date=action.signal_date.isoformat() if (action and action.signal_date) else None,
+            latest_action_url=action.source_url if action else None,
+            source_urls=source_urls,
+            is_fallback=is_fallback,
+            fallback_reason=fallback_reason,
+            scorer_run_at=row.v2_computed_at.isoformat() if row.v2_computed_at else None,
+        )
+
+
+@app.get(
+    "/api/briefing/themes",
+    response_model=List[BriefingThemeOut],
+    tags=["briefing"],
+    summary="Auto-detected thematic patterns for the narrative briefing",
+)
+def briefing_themes():
+    """Detect up to 3 entity clusters: leadership wave, shared vendor, or sub-segment."""
+    with get_db_session() as session:
+        themes: list = []
+
+        # ── Theme 1: Leadership transitions in the same country (12 months) ──
+        lead_row = session.execute(text("""
+            SELECT
+                p.headquarters_country,
+                array_agg(DISTINCT o.entity_id::text) AS entity_ids,
+                array_agg(DISTINCT s.source_url)      AS source_urls,
+                COUNT(DISTINCT o.entity_id)            AS cnt
+            FROM company_action_signals s
+            JOIN company_profile p ON p.entity_id = s.entity_id
+            JOIN opportunity_signals o ON o.entity_id = s.entity_id
+            WHERE s.signal_type = 'leadership_change'
+              AND s.signal_date >= NOW() - INTERVAL '12 months'
+              AND p.headquarters_country IS NOT NULL
+              AND o.v2_tier IN ('engage', 'develop')
+            GROUP BY p.headquarters_country
+            HAVING COUNT(DISTINCT o.entity_id) >= 2
+            ORDER BY cnt DESC
+            LIMIT 1
+        """)).fetchone()
+
+        if lead_row:
+            ent_rows = session.execute(text("""
+                SELECT entity_id::text, entity_name, entity_type, v2_tier
+                FROM opportunity_signals
+                WHERE entity_id::text = ANY(:ids)
+                ORDER BY v2_overall_score DESC NULLS LAST
+            """), {"ids": list(lead_row.entity_ids)}).fetchall()
+
+            names = [r.entity_name for r in ent_rows[:3]]
+            country = lead_row.headquarters_country
+            if len(names) >= 2:
+                name_list = ", ".join(names[:-1]) + f" and {names[-1]}"
+                narrative = (
+                    f"{name_list} have all seen C-suite transitions in {country} within the past 12 months. "
+                    f"Leadership changes are the strongest buying-window signal in enterprise software: "
+                    f"new executives audit vendor relationships within 90 days at a majority of companies. "
+                    f"TEAMWILL's regional footprint in {country} makes first-call access straightforward. "
+                    f"The window is open now — it narrows as the new leadership settles."
+                )
+            else:
+                narrative = (
+                    f"{names[0]} has seen a leadership transition in {country} "
+                    f"that matches TEAMWILL's outreach window criteria."
+                )
+            src_urls = [u for u in (lead_row.source_urls or []) if u][:3]
+            themes.append(BriefingThemeOut(
+                theme_id=f"leadership_{country.lower().replace(' ', '_')}",
+                title=f"{country} leadership wave",
+                narrative=narrative,
+                entities=[BriefingThemeEntity(
+                    entity_id=r.entity_id, entity_name=r.entity_name,
+                    entity_type=r.entity_type, v2_tier=r.v2_tier,
+                ) for r in ent_rows[:3]],
+                source_urls=src_urls,
+            ))
+
+        # ── Theme 2: Shared Sofico/Miles vendor ──────────────────────────────
+        if len(themes) < 3:
+            vendor_row = session.execute(text("""
+                SELECT
+                    ts.vendor,
+                    array_agg(DISTINCT o.entity_id::text) AS entity_ids,
+                    array_agg(DISTINCT ts.source_url)     AS source_urls,
+                    COUNT(DISTINCT o.entity_id)           AS cnt
+                FROM company_tech_stack ts
+                JOIN opportunity_signals o ON o.entity_id = ts.entity_id
+                WHERE (ts.vendor ILIKE '%sofico%' OR ts.vendor ILIKE '%miles%')
+                  AND o.v2_tier IN ('engage', 'develop')
+                GROUP BY ts.vendor
+                HAVING COUNT(DISTINCT o.entity_id) >= 2
+                ORDER BY cnt DESC
+                LIMIT 1
+            """)).fetchone()
+
+            if vendor_row:
+                ent_rows = session.execute(text("""
+                    SELECT entity_id::text, entity_name, entity_type, v2_tier
+                    FROM opportunity_signals
+                    WHERE entity_id::text = ANY(:ids)
+                    ORDER BY v2_overall_score DESC NULLS LAST
+                """), {"ids": list(vendor_row.entity_ids)}).fetchall()
+
+                names = [r.entity_name for r in ent_rows[:3]]
+                vendor = vendor_row.vendor
+                if len(names) >= 2:
+                    narrative = (
+                        f"{names[0]} and {names[1]} both run on {vendor}. "
+                        f"Shared infrastructure creates a referral corridor — "
+                        f"a TEAMWILL win at one entity becomes a warm introduction at the other. "
+                        f"TEAMWILL's Sofico-certified partnership is the door-opener: both counterparts "
+                        f"know the integration story before the first call. "
+                        f"Combined, these entities represent a multi-year expansion footprint."
+                    )
+                else:
+                    narrative = (
+                        f"{names[0]} is on {vendor}, creating a Sofico integration entry point "
+                        f"for TEAMWILL."
+                    )
+                src_urls = [u for u in (vendor_row.source_urls or []) if u][:3]
+                themes.append(BriefingThemeOut(
+                    theme_id=f"shared_vendor_{vendor.lower().replace(' ', '_')[:20]}",
+                    title=f"Captive auto-finance corridor ({vendor})",
+                    narrative=narrative,
+                    entities=[BriefingThemeEntity(
+                        entity_id=r.entity_id, entity_name=r.entity_name,
+                        entity_type=r.entity_type, v2_tier=r.v2_tier,
+                    ) for r in ent_rows[:3]],
+                    source_urls=src_urls,
+                ))
+
+        # ── Theme 3: Same sub_segment in TEAMWILL geography ──────────────────
+        if len(themes) < 3:
+            seg_row = session.execute(text("""
+                SELECT
+                    p.sub_segment,
+                    array_agg(DISTINCT o.entity_id::text) AS entity_ids,
+                    array_agg(DISTINCT p.headquarters_country) AS countries,
+                    COUNT(DISTINCT o.entity_id) AS cnt
+                FROM company_profile p
+                JOIN opportunity_signals o ON o.entity_id = p.entity_id
+                WHERE p.sub_segment IS NOT NULL
+                  AND p.headquarters_country = ANY(ARRAY[
+                      'France','Tunisia','Morocco','Spain','United Kingdom',
+                      'Belgium','Germany','Portugal','Italy'
+                  ])
+                  AND o.v2_tier IN ('engage', 'develop')
+                GROUP BY p.sub_segment
+                HAVING COUNT(DISTINCT o.entity_id) >= 2
+                ORDER BY cnt DESC
+                LIMIT 1
+            """)).fetchone()
+
+            if seg_row:
+                ent_rows = session.execute(text("""
+                    SELECT entity_id::text, entity_name, entity_type, v2_tier
+                    FROM opportunity_signals
+                    WHERE entity_id::text = ANY(:ids)
+                    ORDER BY v2_overall_score DESC NULLS LAST
+                """), {"ids": list(seg_row.entity_ids)}).fetchall()
+
+                names = [r.entity_name for r in ent_rows[:3]]
+                seg = seg_row.sub_segment
+                countries = [c for c in (seg_row.countries or []) if c][:2]
+                country_str = " and ".join(countries) if countries else "TEAMWILL geographies"
+                if len(names) >= 2:
+                    name_list = ", ".join(names[:-1]) + f" and {names[-1]}"
+                    narrative = (
+                        f"Within the {seg} sub-segment, {name_list} "
+                        f"both show elevated V2 scores in {country_str}. "
+                        f"Sector-specific pain tends to be systemic — the operational pressures "
+                        f"driving complaints at one player affect peers on the same infrastructure cycle. "
+                        f"TEAMWILL's product portfolio maps directly to {seg} operational needs, "
+                        f"making a vertical play more efficient than isolated single-entity outreach."
+                    )
+                else:
+                    narrative = (
+                        f"{names[0]} is in the {seg} sub-segment with high V2 scores "
+                        f"in {country_str}."
+                    )
+                themes.append(BriefingThemeOut(
+                    theme_id=f"segment_{seg.lower().replace(' ', '_')[:25]}",
+                    title=f"{seg} sector cluster",
+                    narrative=narrative,
+                    entities=[BriefingThemeEntity(
+                        entity_id=r.entity_id, entity_name=r.entity_name,
+                        entity_type=r.entity_type, v2_tier=r.v2_tier,
+                    ) for r in ent_rows[:3]],
+                    source_urls=[],
+                ))
+
+        return themes
+
+
+@app.get(
+    "/api/briefing/contrarian",
+    response_model=BriefingContrarianOut,
+    tags=["briefing"],
+    summary="Largest V1→V2 negative demotion — the trap V2 caught",
+)
+def briefing_contrarian():
+    """Entity with the largest V1-to-V2 score drop, demoted from high V1 to watch/develop."""
+    with get_db_session() as session:
+        row = session.execute(text("""
+            SELECT
+                entity_id::text AS entity_id,
+                entity_name,
+                entity_type,
+                overall_score    AS v1,
+                v2_overall_score AS v2,
+                v2_tier,
+                v2_reasoning
+            FROM opportunity_signals
+            WHERE overall_score >= 70
+              AND v2_tier IN ('watch', 'develop')
+              AND v2_reasoning->'axes'->'reachability'->'penalties' IS NOT NULL
+            ORDER BY (overall_score - COALESCE(v2_overall_score, 0)) DESC NULLS LAST
+            LIMIT 1
+        """)).fetchone()
+
+        if row is None:
+            return BriefingContrarianOut(
+                entity_id="", entity_name="", entity_type="",
+                v1_score=0, has_data=False,
+            )
+
+        reasoning = row.v2_reasoning or {}
+        axes = reasoning.get("axes") or {}
+        reach = axes.get("reachability") or {}
+        penalties = reach.get("penalties") or []
+
+        top_penalty: Optional[str] = None
+        lock_in_vendor: Optional[str] = None
+        if penalties:
+            top_p = penalties[0] if isinstance(penalties, list) else None
+            if isinstance(top_p, dict):
+                top_penalty = top_p.get("reason") or top_p.get("label") or str(top_p)
+                lock_in_vendor = top_p.get("vendor") or top_p.get("competitor")
+            elif isinstance(top_p, str):
+                top_penalty = top_p
+
+        if not lock_in_vendor:
+            vendor_row = session.execute(text("""
+                SELECT vendor FROM company_tech_stack
+                WHERE entity_id::text = :eid
+                ORDER BY detected_date DESC NULLS LAST
+                LIMIT 1
+            """), {"eid": row.entity_id}).fetchone()
+            if vendor_row:
+                lock_in_vendor = vendor_row.vendor
+
+        return BriefingContrarianOut(
+            entity_id=row.entity_id,
+            entity_name=row.entity_name,
+            entity_type=row.entity_type,
+            v1_score=float(row.v1),
+            v2_score=float(row.v2) if row.v2 is not None else None,
+            v2_tier=row.v2_tier,
+            top_penalty=top_penalty,
+            lock_in_vendor=lock_in_vendor,
+            has_data=True,
+        )
+
+
+@app.get(
+    "/api/briefing/scorer_run",
+    tags=["briefing"],
+    summary="Timestamp of the most recent V2 scorer run",
+)
+def briefing_scorer_run():
+    """Returns the latest v2_computed_at timestamp across all opportunity signals."""
+    with get_db_session() as session:
+        row = session.execute(text("""
+            SELECT MAX(v2_computed_at) AS last_run
+            FROM opportunity_signals
+            WHERE v2_computed_at IS NOT NULL
+        """)).fetchone()
+        return {"last_run": row.last_run.isoformat() if (row and row.last_run) else None}
+
+
+import pandas as pd
+import numpy as np
+
+@app.get(
+    "/api/deal-intelligence",
+    tags=["deal-intelligence"],
+    summary="Market Positioning & Deal Intelligence Data",
+)
+def deal_intelligence():
+    comp_path = os.path.join(_PROJECT_ROOT, "data", "aaTeamwill_competitors.csv")
+    erp_path = os.path.join(_PROJECT_ROOT, "data", "aaTeamwill_erp_solutions.csv")
+    
+    try:
+        df_comp = pd.read_csv(comp_path)
+        df_erp = pd.read_csv(erp_path)
+        
+        # Competitors Grouped by Tier & Overlap Threat
+        df_comp['is_high_threat'] = df_comp['overlap_with_teamwill_score'] >= 4
+        
+        def get_domain_focus(tier):
+            if tier == 'Niche Specialist': return 9
+            if tier == 'Tier 3 Local/Boutique': return 7
+            if tier == 'Tier 2 Regional': return 5
+            return 2 # Tier 1 Global
+            
+        df_comp['domain_focus_score'] = df_comp['competitor_tier'].apply(get_domain_focus)
+        df_comp['estimated_revenue_usd_millions'] = pd.to_numeric(df_comp['estimated_revenue_usd_millions'], errors='coerce').fillna(50)
+        
+        # 1. Teamwill Filter Hook (Certified ERPs)
+        teamwill_certified_erps = [
+            "Sofico", "Sofico Miles", "Alfa Systems", "Solifi", "FIS Ambit", "Cassiopae", "APAK", "Ekip", "Cegid", "Dolibarr", "ERPNext"
+        ]
+        def is_certified(name):
+            if not name or pd.isna(name): return False
+            n = str(name).lower()
+            for cert in teamwill_certified_erps:
+                if cert.lower() in n: return True
+            return False
+            
+        df_erp['is_teamwill_certified'] = df_erp['erp_name'].apply(is_certified) | df_erp['vendor'].apply(is_certified)
+        
+        # Helper: calculate market crowding for Chart 3
+        def count_competitor_partnerships(row):
+            erp_name = str(row['erp_name']).lower()
+            vendor = str(row['vendor']).lower()
+            count = 0
+            for p in df_comp['erp_partnerships'].dropna():
+                pl = p.lower()
+                # Basic string match against competitor erp_partnerships
+                if vendor in pl or (len(erp_name) > 4 and erp_name in pl):
+                    count += 1
+            return count
+            
+        df_erp['competitor_partnership_count'] = df_erp.apply(count_competitor_partnerships, axis=1)
+
+        # 2. Stronghold Saturation Filter
+        country_saturation = {
+            "France": 0, "Tunisia": 0, "Morocco": 0, 
+            "UK": 0, "Germany": 0, "US": 0
+        }
+        for _, row in df_comp.iterrows():
+            geo = str(row['geographic_presence']).lower() + " " + str(row['headquarters_country']).lower()
+            if "france" in geo or "paris" in geo: country_saturation["France"] += 1
+            if "tunisia" in geo or "tunis" in geo: country_saturation["Tunisia"] += 1
+            if "morocco" in geo: country_saturation["Morocco"] += 1
+            if "uk" in geo or "united kingdom" in geo or "london" in geo: country_saturation["UK"] += 1
+            if "germany" in geo or "munich" in geo: country_saturation["Germany"] += 1
+            if "us" in geo or "united states" in geo or "america" in geo: country_saturation["US"] += 1
+
+        saturation_list = [{"country": k, "density": v} for k, v in country_saturation.items()]
+        
+        # Replace NaN with None for JSON serialization
+        df_comp = df_comp.replace({np.nan: None})
+        competitors = df_comp.to_dict('records')
+        
+        df_erp = df_erp.replace({np.nan: None})
+        erp_data = df_erp.to_dict('records')
+        
+        return {
+            "teamwill_stats": {
+                "revenue_bracket": "€100M",
+                "experts": "800+",
+                "countries": 11,
+                "certified_erps": 7
+            },
+            "competitors": competitors,
+            "erp_solutions": erp_data,
+            "regional_saturation": saturation_list
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

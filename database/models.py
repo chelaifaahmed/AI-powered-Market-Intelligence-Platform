@@ -610,8 +610,8 @@ class CarListing(Base, TimestampMixin):
     color: Mapped[Optional[str]] = mapped_column(String(50))
     trim_level: Mapped[Optional[str]] = mapped_column(String(100))
     listing_year: Mapped[Optional[int]] = mapped_column(SmallInteger, comment="Model year of the listed vehicle")
-    # Provenance: seeded | scraped | imported
-    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
+    # Provenance: reference | scraped | imported
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="reference", server_default="reference")
 
     model: Mapped["CarModel"] = relationship("CarModel", back_populates="listings")
 
@@ -853,8 +853,8 @@ class CompetitorPricing(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    # Provenance: seeded | scraped | imported
-    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
+    # Provenance: reference | scraped | imported
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="reference", server_default="reference")
 
     company: Mapped["InsuranceCompany"] = relationship(
         "InsuranceCompany", back_populates="competitor_pricings"
@@ -948,8 +948,8 @@ class CarReview(Base, TimestampMixin):
     scraped_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    # Provenance: seeded | scraped | imported
-    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
+    # Provenance: reference | scraped | imported
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="reference", server_default="reference")
     # RAG: BGE-base-en-v1.5 embedding stored as JSONB float array (768-dim, L2-normalised)
     embedding: Mapped[Optional[list]] = mapped_column(
         JSONB, nullable=True,
@@ -1008,8 +1008,8 @@ class InsuranceReview(Base, TimestampMixin):
     scraped_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    # Provenance: seeded | scraped | imported
-    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
+    # Provenance: reference | scraped | imported
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="reference", server_default="reference")
     # RAG: BGE-base-en-v1.5 embedding stored as JSONB float array (768-dim, L2-normalised)
     embedding: Mapped[Optional[list]] = mapped_column(
         JSONB, nullable=True,
@@ -1332,8 +1332,8 @@ class MarketTrendArticle(Base, TimestampMixin):
     scraped_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    # Provenance: seeded | scraped | imported
-    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="seeded", server_default="seeded")
+    # Provenance: reference | scraped | imported
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, default="reference", server_default="reference")
     # RAG: BGE-base-en-v1.5 embedding stored as JSONB float array (768-dim, L2-normalised)
     embedding: Mapped[Optional[list]] = mapped_column(
         JSONB, nullable=True,
@@ -1445,6 +1445,17 @@ class OpportunitySignal(Base, TimestampMixin):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    # V2 four-axis scorer columns — populated by analytics.v2_opportunity_scorer
+    v2_pain_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    v2_recovery_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    v2_erp_fit_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    v2_reachability_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    v2_overall_score: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    v2_tier: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    v2_reasoning: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    v2_computed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    intervention_brief: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
 
 class BrandReputationScore(Base):
     """
@@ -1491,7 +1502,7 @@ class BrandReputationScore(Base):
     )
     data_origin: Mapped[str] = mapped_column(
         String(20), nullable=False, default="all", server_default="all",
-        comment="Provenance filter: all | seeded | scraped",
+        comment="Provenance filter: all | reference | scraped",
     )
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False,
@@ -1537,7 +1548,7 @@ class SentimentTrend(Base):
     )
     data_origin: Mapped[str] = mapped_column(
         String(20), nullable=False, default="all", server_default="all",
-        comment="Provenance filter: all | seeded | scraped",
+        comment="Provenance filter: all | reference | scraped",
     )
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False,
@@ -1584,7 +1595,7 @@ class ErpVendor(Base, TimestampMixin):
     target_region: Mapped[str] = mapped_column(String(50), nullable=False, comment="TN, EU, MENA, global")
     website: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'seeded'"))
+    data_origin: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'reference'"))
 
 
 # ---------------------------------------------------------------------------
@@ -1635,6 +1646,25 @@ class MlClusterMetadata(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+# ---------------------------------------------------------------------------
+# GROUP E - Authentication
+# ---------------------------------------------------------------------------
+
+class User(Base, TimestampMixin):
+    """User table for authentication and access control."""
+    __tablename__ = "users"
+    __table_args__ = (
+        Index("idx_users_email", "email"),
+        {"comment": "User accounts with OTP verification."},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_uuid)
+    full_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    verification_code: Mapped[Optional[str]] = mapped_column(String(10))
+    code_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 # ---------------------------------------------------------------------------
 # Public export - import all models from one location
@@ -1669,4 +1699,6 @@ __all__ = [
     "MlModelMetric",
     # ML Clustering
     "MlClusterMetadata",
+    # Auth
+    "User",
 ]

@@ -151,10 +151,25 @@ export interface Article {
   region: string | null;
   scraped_at: string;
   data_origin: string;
+  tags: string[];
+  days_ago: number | null;
+  is_new: boolean;
+  category_label: string;
+  forum_subcategory: string | null;
+}
+
+export interface ArticleEvent extends Article {
+  days_until: number;
+  is_upcoming: boolean;
+  is_this_month: boolean;
+  is_past: boolean;
+  event_location: string;
+  event_audience: string;
 }
 
 export interface ArticleCategory {
   category: string;
+  label: string;
   count: number;
 }
 
@@ -560,6 +575,187 @@ export interface KeywordSearchResult {
   keywords_searched: number;
 }
 
+export interface V2EvidenceItem {
+  label: string;
+  detail: string | null;
+  source_url: string | null;
+  source_name: string | null;
+  date: string | null;
+  confidence: string | null;
+  tag: string | null;
+}
+
+export interface V2ErpMatch {
+  erp_name: string;
+  vendor: string;
+  relevance_score: number;
+  fit_score: number;
+  automotive_fit_score: number;
+  insurance_fit_score: number;
+  matched_keyword: string;
+  match_source: string;
+  // Expandable catalog detail
+  industries_strong_in: string[];
+  key_modules: string[];
+  notable_customers: string[];
+  mena_africa_adoption: string | null;
+  top_pros: string | null;
+}
+
+export interface V2Evidence {
+  entity_id: string;
+  entity_name: string;
+  entity_type: string;
+  pain_evidence: V2EvidenceItem[];
+  recovery_evidence: V2EvidenceItem[];
+  erp_fit_evidence: V2EvidenceItem[];
+  erp_catalog_matches: V2ErpMatch[];
+  erp_profile_sources: string[];
+  reachability_evidence: V2EvidenceItem[];
+}
+
+export interface V2DataQuality {
+  evidence_strength: "high" | "medium" | "low" | "thin";
+  scraped_review_count: number;
+  reference_review_count: number;
+  has_scraped_reviews: boolean;
+  has_scraped_action_signals: boolean;
+  scraped_action_signal_count: number;
+  has_scraped_tech_stack: boolean;
+  scraped_tech_stack_count: number;
+}
+
+export interface V2Combination {
+  tier: string;
+  geometric_mean: number | null;
+  gate_override: string | null;
+  weakest_axis: number | null;
+  weakest_score: number | null;
+  strong_axes_count: number;
+}
+
+export interface V2Reasoning {
+  data_quality?: V2DataQuality;
+  axes?: Record<string, unknown>;
+  combination?: V2Combination;
+  penalties?: string[];
+  bonuses?: string[];
+}
+
+export interface V2Opportunity {
+  entity_name: string;
+  entity_type: string;
+  entity_id: string;
+  region: string | null;
+  v1_overall_score: number;
+  v1_signal_strength: string;
+  v2_pain_score: number | null;
+  v2_recovery_score: number | null;
+  v2_erp_fit_score: number | null;
+  v2_reachability_score: number | null;
+  v2_overall_score: number | null;
+  v2_tier: string | null;
+  v2_reasoning: V2Reasoning | null;
+  v2_computed_at: string | null;
+}
+
+export interface ActionSignal {
+  signal_type: string | null;
+  signal_date: string | null;
+  headline: string | null;
+  summary: string | null;
+  source_url: string | null;
+  source_name: string | null;
+  polarity: string | null;
+}
+
+export interface ErpBrief {
+  top_pick: {
+    erp_name: string;
+    rank: number;
+    verdict: string;
+    tags: string[];
+    opening_line: string;
+    peer_customers: string[];
+    teamwill_advantage: string;
+  };
+  alternative: {
+    erp_name: string;
+    rank: number;
+    verdict: string;
+    why_ranked_lower: string;
+    tags: string[];
+  } | null;
+  competitor_alerts: {
+    company_name: string;
+    tier: string;
+    threat: string;
+  }[];
+  avoid: {
+    erp_name: string;
+    reason: string;
+  } | null;
+  _metadata: {
+    entity_name: string;
+    entity_type: string;
+    erp_scores: Record<string, {
+      automotive_fit: number;
+      insurance_fit: number;
+      teamwill_relevance: number;
+      mena_adoption: string;
+      notable_customers: string[];
+    }>;
+  };
+}
+
+export interface SentimentTrendPoint {
+  period_date: string;
+  negative_count: number;
+  positive_count: number;
+  neutral_count: number;
+}
+
+export interface CompanyIntelligence {
+  entity_name: string;
+  entity_type: string;
+  entity_id: string;
+  region: string | null;
+  overall_score: number;
+  signal_strength: string;
+  top_complaint_types: string[] | null;
+  v2_pain_score: number | null;
+  v2_recovery_score: number | null;
+  v2_erp_fit_score: number | null;
+  v2_reachability_score: number | null;
+  v2_overall_score: number | null;
+  v2_tier: string | null;
+  v2_reasoning: V2Reasoning | null;
+  company_state: string | null;
+  ceo_name: string | null;
+  ceo_appointment_date: string | null;
+  is_hiring_aggressively: boolean | null;
+  open_roles_estimate: number | null;
+  key_hiring_roles: string | null;
+  intervention_level: string | null;
+  outreach_timing: string | null;
+  trend_direction: string | null;
+  intervention_brief: {
+    entry_strategy?: string;
+    positioning?: string;
+    outreach_tone?: string;
+    best_timing?: string;
+    avoid?: string;
+    pain_escalation_days?: number | null;
+    pain_escalation_label?: string;
+    confidence_note?: string;
+    suggested_entry_message?: string;
+    error?: string;
+    _generated_at?: string;
+  } | null;
+  recent_signals: ActionSignal[];
+  sentiment_trend: SentimentTrendPoint[];
+}
+
 // --- API functions ---
 
 export const api = {
@@ -578,9 +774,14 @@ export const api = {
   listings: (p?: { limit?: number; offset?: number; brand?: string; origin?: string }) =>
     get<PagedResponse<Listing>>("/api/listings", p),
 
-  articles: (p?: { limit?: number; offset?: number; category?: string; categories?: string; region?: string; search?: string; origin?: string; relevant_only?: boolean }) =>
+  articles: (p?: { limit?: number; offset?: number; category?: string; categories?: string; region?: string; search?: string; origin?: string; relevant_only?: boolean; sort?: string }) =>
     get<PagedResponse<Article>>("/api/articles", p),
   articleCategories: () => get<ArticleCategory[]>("/api/articles/categories"),
+  articleEvents: () => get<ArticleEvent[]>("/api/articles/events"),
+  articleSummarize: (title: string, body: string) =>
+    post<{ reply: string; context_used: string[] }>("/api/analyst/chat", {
+      messages: [{ role: "user", content: `Summarize this article in 3 bullet points and explain its relevance to ERP vendors in the automotive or insurance sector:\n\n${title}\n\n${body.slice(0, 500)}` }],
+    }),
 
   models: (p?: { limit?: number; offset?: number; brand?: string; engine_type?: string; segment?: string; ev_only?: boolean }) =>
     get<PagedResponse<CarModelDetail>>("/api/models", p),
@@ -606,7 +807,15 @@ export const api = {
 
   opportunities: (p?: { region?: string; entity_type?: string; min_score?: number }) =>
     get<OpportunitySignal[]>("/api/opportunities", p),
+  intelligenceOpportunities: () =>
+    get<CompanyIntelligence[]>("/api/opportunities/intelligence"),
   opportunitySummary: () => get<OpportunitySummary>("/api/opportunities/summary"),
+  opportunitiesV2: (p?: { tier?: string; min_score?: number; limit?: number }) =>
+    get<V2Opportunity[]>("/api/opportunities/v2", p),
+  evidenceV2: (entityId: string) =>
+    get<V2Evidence>(`/api/opportunities/v2/${entityId}/evidence`),
+  erpBrief: (entityId: string) =>
+    get<ErpBrief>(`/api/opportunities/${entityId}/erp-brief`),
 
   insuranceLandscape: () => get<InsuranceLandscape>("/api/insurance/landscape"),
 

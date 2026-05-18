@@ -1,0 +1,39 @@
+{
+  "header": {
+    "title": "Opportunités de Marché & Prospection",
+    "subtitle": "Positionnement Stratégique & Offres",
+    "logout": "Déconnexion",
+    "language": "Langue",
+    "en": "Anglais",
+    "fr": "Français"
+  },
+  "dashboard": {
+    "kpi_competitors": "Concurrents Suivis",
+    "kpi_threats": "Menaces Directes",
+    "matrix_title": "Matrice de Positionnement Concurrentiel",
+    "radar_title": "Radar de Compétences Écosystème ERP",
+    "battlecard_btn": "Générer la Stratégie de Gain"
+  },
+  "nav": {
+    "alpha_drop": "Alpha Drop",
+    "prospect_strategy": "Stratégie Prospect",
+    "distress_radar": "Radar de Détresse",
+    "field_intel": "Veille Terrain",
+    "deal_intel": "Gestion des Offres",
+    "scraping_stats": "Statistiques Scraping",
+    "ai_analyst": "Analyste IA",
+    "admin": "Administration",
+    "version": "v2.0 · Données réelles",
+    "market_intel": "Marché & Prospection"
+  },
+  "pages": {
+    "accueil": { "title": "Alpha Drop", "subtitle": "Vérification d'ambiance · Informations en direct · Signaux Alpha" },
+    "company": { "title": "Radar de Détresse", "subtitle": "Suivi d'entreprises, clusters et signaux ERP" },
+    "company-intelligence": { "title": "Stratégie Prospect", "subtitle": "État de l'entité, signaux de recrutement & timing d'approche" },
+    "field-intel": { "title": "Veille Terrain", "subtitle": "Actualités du marché & données tarifaires pour vos appels" },
+    "deal-intelligence": { "title": "Positionnement Marché & Offres", "subtitle": "Architecture Stratégique de Gain" },
+    "market": { "title": "Statistiques Scraping", "subtitle": "Santé opérationnelle & signaux de marché de haut niveau" },
+    "analyst": { "title": "Analyste IA", "subtitle": "Discutez avec vos données via Claude AI" },
+    "admin": { "title": "Administration", "subtitle": "Opérations, sources & gestion du système" }
+  }
+}

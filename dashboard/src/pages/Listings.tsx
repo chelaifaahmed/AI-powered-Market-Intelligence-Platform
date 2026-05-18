@@ -35,7 +35,7 @@ function fmtDate(d: string | null) {
   }
 }
 
-type OriginFilter = "scraped" | "seeded" | "all";
+type OriginFilter = "scraped" | "reference" | "all";
 
 export default function Listings() {
   const [offset, setOffset] = useState(0);
@@ -124,7 +124,7 @@ export default function Listings() {
       <div className="card p-4 flex flex-wrap items-center gap-3">
         {/* Origin filter */}
         <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg p-1">
-          {(["scraped", "all", "seeded"] as OriginFilter[]).map((o) => (
+          {(["scraped", "all", "reference"] as OriginFilter[]).map((o) => (
             <button
               key={o}
               onClick={() => { setOriginFilter(o); setOffset(0); }}
@@ -132,12 +132,12 @@ export default function Listings() {
                 "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
                 originFilter === o
                   ? o === "scraped" ? "bg-emerald-500 text-white shadow-sm"
-                    : o === "seeded" ? "bg-slate-400 text-white shadow-sm"
+                    : o === "reference" ? "bg-slate-400 text-white shadow-sm"
                     : "bg-brand-500 text-white shadow-sm"
                   : "text-slate-500 hover:text-slate-700"
               )}
             >
-              {o === "scraped" ? "Live" : o === "seeded" ? "Seeded" : "All"}
+              {o === "scraped" ? "Live" : o === "reference" ? "Reference" : "All"}
             </button>
           ))}
         </div>

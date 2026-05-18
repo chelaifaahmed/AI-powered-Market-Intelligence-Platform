@@ -193,7 +193,7 @@ def compute_brand_reputation(session: Session) -> Dict[str, Any]:
     Runs the aggregation three times:
       1. origin='all'     — all reviews combined (backward compat)
       2. origin='scraped' — real/live reviews only
-      3. origin='seeded'  — seeded/synthetic reviews only
+      3. origin='reference'  — reference/demo data reviews only
 
     Each pass upserts rows with the corresponding ``data_origin`` tag
     into ``brand_reputation_scores`` and ``sentiment_trends``.
@@ -214,7 +214,7 @@ def compute_brand_reputation(session: Session) -> Dict[str, Any]:
     for origin_filter, origin_label in [
         (None, "all"),
         ("scraped", "scraped"),
-        ("seeded", "seeded"),
+        ("reference", "reference"),
     ]:
         rows = _run_aggregation_query(session, origin_filter)
         logger.info(
